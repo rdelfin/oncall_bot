@@ -1,5 +1,12 @@
-use actix_web::{get, post, web, App, HttpServer, Responder, Result};
+use actix_web::{
+    post,
+    web::{self, Data},
+    App, HttpServer, Responder, Result,
+};
 use serde::{Deserialize, Serialize};
+use sqlx::sqlite::SqlitePool;
+
+mod db;
 
 #[derive(Serialize, Deserialize)]
 struct SyncRequest {
@@ -12,20 +19,26 @@ struct SyncResponse {
     ok: bool,
 }
 
-#[get("/hello/{name}")]
-async fn greet(name: web::Path<String>) -> impl Responder {
-    format!("Hello {name}!")
-}
-
 #[post("/add_sync")]
-async fn add_sync(info: web::Json<SyncRequest>) -> Result<impl Responder> {
+async fn add_sync(
+    _info: web::Json<SyncRequest>,
+    _data: Data<SqlitePool>,
+) -> Result<impl Responder> {
     Ok(web::Json(SyncResponse { ok: true }))
 }
 
 #[tokio::main]
-async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| App::new().service(greet).service(add_sync))
-        .bind(("127.0.0.1", 8080))?
-        .run()
-        .await
+async fn main() -> anyhow::Result<()> {
+    let pool = db::initialise().await?;
+
+    HttpServer::new(move || {
+        App::new()
+            .app_data(Data::new(pool.clone()))
+            .service(add_sync)
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await?;
+
+    Ok(())
 }
