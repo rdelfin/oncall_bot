@@ -8,9 +8,9 @@ edition = "2021"
 [dependencies]
 actix-web = "4"
 anyhow = "1.0.56"
+diesel = { version = "1.4.4", features = ["sqlite"] }
 dotenv = "0.15.0"
 reqwest = "0.11.10"
 serde = { version = "1.0.136", features = ["derive"] }
-sqlx = { version = "0.5.11", features = ["runtime-tokio-rustls", "sqlite"] }
 thiserror = "1.0.30"
 tokio = { version = "1.17.0", features = ["full"] }
