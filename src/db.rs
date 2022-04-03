@@ -20,11 +20,11 @@ pub fn connection() -> SqliteConnection {
 pub fn add_sync<'a>(
     conn: &SqliteConnection,
     oncall_id: &'a str,
-    user_group: &'a str,
+    user_group_id: &'a str,
 ) -> QueryResult<OncallSync> {
     let new_oncall_sync = NewOncallSync {
         oncall_id,
-        user_group,
+        user_group_id,
     };
 
     // Insert and get ID

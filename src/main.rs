@@ -13,7 +13,7 @@ mod schema;
 #[derive(Serialize, Deserialize, Debug)]
 struct AddSyncRequest {
     oncall_id: String,
-    user_group: String,
+    user_group_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -25,7 +25,7 @@ struct SyncedWithRequest {
 struct SyncedWithResponse {
     oncall_id: String,
     oncall_name: String,
-    user_groups: Vec<String>,
+    user_group_ids: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -64,7 +64,7 @@ async fn add_sync(req: web::Json<AddSyncRequest>) -> Result<impl Responder> {
         }
     } else {
         let sync_res = web::block(move || {
-            db::add_sync(&conn, &req.oncall_id, &req.user_group).expect("This is an error")
+            db::add_sync(&conn, &req.oncall_id, &req.user_group_id).expect("This is an error")
         })
         .await
         .unwrap();
@@ -86,7 +86,10 @@ async fn synced_with(req: web::Json<SyncedWithRequest>) -> Result<impl Responder
     Ok(HttpResponse::Ok().json(SyncedWithResponse {
         oncall_id,
         oncall_name,
-        user_groups: query.iter().map(|sync| sync.user_group.clone()).collect(),
+        user_group_ids: query
+            .iter()
+            .map(|sync| sync.user_group_id.clone())
+            .collect(),
     }))
 }
 

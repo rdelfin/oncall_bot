@@ -5,12 +5,12 @@ use serde::{Deserialize, Serialize};
 pub struct OncallSync {
     pub id: i32,
     pub oncall_id: String,
-    pub user_group: String,
+    pub user_group_id: String,
 }
 
 #[derive(Insertable, Serialize, Deserialize)]
 #[table_name = "oncall_syncs"]
 pub struct NewOncallSync<'a> {
     pub oncall_id: &'a str,
-    pub user_group: &'a str,
+    pub user_group_id: &'a str,
 }
