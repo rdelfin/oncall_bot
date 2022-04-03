@@ -3,7 +3,6 @@ use crate::{
     schema::oncall_syncs,
 };
 use diesel::{prelude::*, result::QueryResult, sqlite::SqliteConnection};
-use dotenv::dotenv;
 use std::env;
 
 no_arg_sql_function!(
@@ -13,8 +12,6 @@ no_arg_sql_function!(
 );
 
 pub fn connection() -> SqliteConnection {
-    dotenv().ok();
-
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     SqliteConnection::establish(&database_url)
         .expect(&format!("Error connecting to {}", database_url))
@@ -22,11 +19,11 @@ pub fn connection() -> SqliteConnection {
 
 pub fn add_sync<'a>(
     conn: &SqliteConnection,
-    oncall_name: &'a str,
+    oncall_id: &'a str,
     user_group: &'a str,
 ) -> QueryResult<OncallSync> {
     let new_oncall_sync = NewOncallSync {
-        oncall_name,
+        oncall_id,
         user_group,
     };
 
@@ -48,9 +45,9 @@ pub fn add_sync<'a>(
     }
 }
 
-pub fn get_syncs(conn: &SqliteConnection, oncall_name_q: &str) -> QueryResult<Vec<OncallSync>> {
+pub fn get_syncs(conn: &SqliteConnection, oncall_id_q: &str) -> QueryResult<Vec<OncallSync>> {
     use crate::schema::oncall_syncs::dsl::*;
     oncall_syncs
-        .filter(oncall_name.eq(oncall_name_q))
+        .filter(oncall_id.eq(oncall_id_q))
         .load::<OncallSync>(conn)
 }

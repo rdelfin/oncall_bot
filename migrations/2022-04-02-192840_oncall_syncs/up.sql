@@ -1,5 +1,5 @@
 CREATE TABLE oncall_syncs (
   id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-  oncall_name VARCHAR NOT NULL,
+  oncall_id VARCHAR NOT NULL,
   user_group VARCHAR UNIQUE NOT NULL
 );
