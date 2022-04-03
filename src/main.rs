@@ -41,8 +41,32 @@ struct ListUserGroupsResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct ListSlackUsersResponse {
+    users: Vec<slack::User>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct AddUserMapRequest {
+    slack_id: String,
+    opsgenie_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct ErrorResponse {
     error: String,
+}
+
+#[get("/list_slack_users")]
+async fn list_slack_users() -> Result<impl Responder> {
+    let users = match slack::list_users().await {
+        Ok(users) => users,
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", e),
+            }));
+        }
+    };
+    Ok(HttpResponse::Ok().json(ListSlackUsersResponse { users }))
 }
 
 #[get("/list_user_groups")]
@@ -63,6 +87,17 @@ async fn list_oncalls() -> Result<impl Responder> {
     Ok(HttpResponse::Ok().json(ListOncallsResponse {
         oncalls: opsgenie::list_oncalls().await,
     }))
+}
+
+#[post("/add_user_map")]
+async fn add_user_map(req: web::Json<AddUserMapRequest>) -> Result<impl Responder> {
+    let conn = db::connection();
+    let add_res = web::block(move || {
+        db::add_user_mapping(&conn, &req.opsgenie_id, &req.slack_id).expect("This is an error")
+    })
+    .await
+    .unwrap();
+    Ok(HttpResponse::Ok().json(add_res))
 }
 
 #[post("/add_sync")]
@@ -146,6 +181,7 @@ async fn main() -> anyhow::Result<()> {
             .service(synced_with)
             .service(list_oncalls)
             .service(list_user_groups)
+            .service(list_slack_users)
     })
     .bind(("127.0.0.1", 8080))?
     .run()

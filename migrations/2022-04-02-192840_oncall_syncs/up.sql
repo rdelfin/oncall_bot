@@ -3,3 +3,9 @@ CREATE TABLE oncall_syncs (
   oncall_id VARCHAR NOT NULL,
   user_group_id VARCHAR UNIQUE NOT NULL
 );
+
+CREATE TABLE user_mapping (
+  id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+  opsgenie_id VARCHAR UNIQUE NOT NULL,
+  slack_id VARCHAR UNIQUE NOT NULL
+);
