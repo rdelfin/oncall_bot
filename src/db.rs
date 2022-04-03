@@ -79,3 +79,37 @@ pub fn add_user_mapping<'a>(
             .clone())
     }
 }
+
+pub fn list_user_mappings(conn: &SqliteConnection) -> QueryResult<Vec<UserMapping>> {
+    use crate::schema::user_mapping::dsl::*;
+    user_mapping.load::<UserMapping>(conn)
+}
+
+pub fn get_slack_user_mapping(
+    conn: &SqliteConnection,
+    slack_id_q: &str,
+) -> QueryResult<Option<UserMapping>> {
+    use crate::schema::user_mapping::dsl::*;
+    Ok(user_mapping
+        .filter(slack_id.eq(slack_id_q))
+        .load::<UserMapping>(conn)?
+        .first()
+        .map(|um| um.clone()))
+}
+
+pub fn get_opsgenie_user_mapping(
+    conn: &SqliteConnection,
+    opsgenie_id_q: &str,
+) -> QueryResult<Option<UserMapping>> {
+    use crate::schema::user_mapping::dsl::*;
+    Ok(user_mapping
+        .filter(opsgenie_id.eq(opsgenie_id_q))
+        .load::<UserMapping>(conn)?
+        .first()
+        .map(|um| um.clone()))
+}
+
+pub fn list_oncall_syncs(conn: &SqliteConnection) -> QueryResult<Vec<OncallSync>> {
+    use crate::schema::oncall_syncs::dsl::*;
+    oncall_syncs.load::<OncallSync>(conn)
+}
