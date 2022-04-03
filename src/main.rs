@@ -33,6 +33,11 @@ struct ListOncallsResponse {
     oncalls: Vec<opsgenie::Oncall>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct ErrorResponse {
+    error: String,
+}
+
 #[get("/list_oncalls")]
 async fn list_oncalls() -> Result<impl Responder> {
     Ok(HttpResponse::Ok().json(ListOncallsResponse {
@@ -43,12 +48,28 @@ async fn list_oncalls() -> Result<impl Responder> {
 #[post("/add_sync")]
 async fn add_sync(req: web::Json<AddSyncRequest>) -> Result<impl Responder> {
     let conn = db::connection();
-    let sync_res = web::block(move || {
-        db::add_sync(&conn, &req.oncall_id, &req.user_group).expect("This is an error")
-    })
-    .await
-    .unwrap();
-    Ok(HttpResponse::Ok().json(sync_res))
+
+    // Verify oncall existence
+    if let Err(opsgenie::Error::HttpErrorCode(code)) =
+        opsgenie::get_oncall_name(&req.oncall_id).await
+    {
+        if code == reqwest::StatusCode::NOT_FOUND {
+            Ok(HttpResponse::NotFound().json(ErrorResponse {
+                error: format!("Oncall with ID {} does not exist", req.oncall_id),
+            }))
+        } else {
+            Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: "Error fetching oncalls from opsgenie".into(),
+            }))
+        }
+    } else {
+        let sync_res = web::block(move || {
+            db::add_sync(&conn, &req.oncall_id, &req.user_group).expect("This is an error")
+        })
+        .await
+        .unwrap();
+        Ok(HttpResponse::Ok().json(sync_res))
+    }
 }
 
 #[get("/synced_with")]
