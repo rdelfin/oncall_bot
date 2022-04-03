@@ -5,6 +5,7 @@ use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result
 use dotenv::dotenv;
 use futures_util::future::join_all;
 use serde::{Deserialize, Serialize};
+use tokio::join;
 
 mod db;
 mod models;
@@ -46,6 +47,11 @@ struct ListSlackUsersResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct ListOpsgenieUsersResponse {
+    users: Vec<opsgenie::User>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct AddUserMapRequest {
     slack_id: String,
     opsgenie_id: String,
@@ -67,6 +73,19 @@ async fn list_slack_users() -> Result<impl Responder> {
         }
     };
     Ok(HttpResponse::Ok().json(ListSlackUsersResponse { users }))
+}
+
+#[get("/list_opsgenie_users")]
+async fn list_opsgenie_users() -> Result<impl Responder> {
+    let users = match opsgenie::list_users().await {
+        Ok(users) => users,
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", e),
+            }));
+        }
+    };
+    Ok(HttpResponse::Ok().json(ListOpsgenieUsersResponse { users }))
 }
 
 #[get("/list_user_groups")]
@@ -91,6 +110,22 @@ async fn list_oncalls() -> Result<impl Responder> {
 
 #[post("/add_user_map")]
 async fn add_user_map(req: web::Json<AddUserMapRequest>) -> Result<impl Responder> {
+    // Confirm users exist
+    let (slack_user, opsgenie_user) = join!(
+        slack::get_user(&req.slack_id),
+        opsgenie::get_user(&req.opsgenie_id)
+    );
+    if let Err(e) = slack_user {
+        return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+            error: format!("{:?}", e),
+        }));
+    }
+    if let Err(e) = opsgenie_user {
+        return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+            error: format!("{:?}", e),
+        }));
+    }
+
     let conn = db::connection();
     let add_res = web::block(move || {
         db::add_user_mapping(&conn, &req.opsgenie_id, &req.slack_id).expect("This is an error")
@@ -182,6 +217,8 @@ async fn main() -> anyhow::Result<()> {
             .service(list_oncalls)
             .service(list_user_groups)
             .service(list_slack_users)
+            .service(list_opsgenie_users)
+            .service(add_user_map)
     })
     .bind(("127.0.0.1", 8080))?
     .run()

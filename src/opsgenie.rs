@@ -23,6 +23,14 @@ struct Schedule {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct User {
+    id: String,
+    username: String,
+    #[serde(rename = "fullName")]
+    full_name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct ScheduleListResponse {
     data: Vec<Schedule>,
 }
@@ -30,6 +38,16 @@ struct ScheduleListResponse {
 #[derive(Serialize, Deserialize, Debug)]
 struct GetScheduleResponse {
     data: Schedule,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ListUsersResponse {
+    data: Vec<User>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct GetUserResponse {
+    data: User,
 }
 
 pub async fn list_oncalls() -> Vec<Oncall> {
@@ -74,6 +92,38 @@ pub async fn get_oncall_name(id: &str) -> Result<String, Error> {
             .await?
             .data
             .name),
+        code => Err(Error::HttpErrorCode(code)),
+    }
+}
+
+pub async fn list_users() -> Result<Vec<User>, Error> {
+    let opsgenie_key = opsgenie_key();
+    let client = reqwest::Client::new();
+    let users_response = client
+        .get("https://api.opsgenie.com/v2/users")
+        .header(AUTHORIZATION, format!("GenieKey {}", opsgenie_key))
+        .send()
+        .await
+        .unwrap();
+
+    match users_response.status() {
+        reqwest::StatusCode::OK => Ok(users_response.json::<ListUsersResponse>().await?.data),
+        code => Err(Error::HttpErrorCode(code)),
+    }
+}
+
+pub async fn get_user(id: &str) -> Result<User, Error> {
+    let opsgenie_key = opsgenie_key();
+    let client = reqwest::Client::new();
+    let user_response = client
+        .get(format!("https://api.opsgenie.com/v2/users/{}", id))
+        .header(AUTHORIZATION, format!("GenieKey {}", opsgenie_key))
+        .send()
+        .await
+        .unwrap();
+
+    match user_response.status() {
+        reqwest::StatusCode::OK => Ok(user_response.json::<GetUserResponse>().await?.data),
         code => Err(Error::HttpErrorCode(code)),
     }
 }
