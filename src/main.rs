@@ -3,12 +3,14 @@ extern crate diesel;
 
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use dotenv::dotenv;
+use futures_util::future::join_all;
 use serde::{Deserialize, Serialize};
 
 mod db;
 mod models;
 mod opsgenie;
 mod schema;
+mod slack;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct AddSyncRequest {
@@ -25,7 +27,7 @@ struct SyncedWithRequest {
 struct SyncedWithResponse {
     oncall_id: String,
     oncall_name: String,
-    user_group_ids: Vec<String>,
+    user_groups: Vec<slack::UserGroup>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -34,8 +36,26 @@ struct ListOncallsResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct ListUserGroupsResponse {
+    user_groups: Vec<slack::UserGroup>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct ErrorResponse {
     error: String,
+}
+
+#[get("/list_user_groups")]
+async fn list_user_groups() -> Result<impl Responder> {
+    let user_groups = match slack::list_user_groups().await {
+        Ok(user_groups) => user_groups,
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", e),
+            }));
+        }
+    };
+    Ok(HttpResponse::Ok().json(ListUserGroupsResponse { user_groups }))
 }
 
 #[get("/list_oncalls")]
@@ -62,6 +82,15 @@ async fn add_sync(req: web::Json<AddSyncRequest>) -> Result<impl Responder> {
                 error: "Error fetching oncalls from opsgenie".into(),
             }))
         }
+    } else if let Err(e) = slack::get_user_group(&req.user_group_id).await {
+        match e {
+            slack::Error::UserGroupNotFound => Ok(HttpResponse::NotFound().json(ErrorResponse {
+                error: format!("User group with ID {} does not exist", req.user_group_id),
+            })),
+            e => Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{}", e),
+            })),
+        }
     } else {
         let sync_res = web::block(move || {
             db::add_sync(&conn, &req.oncall_id, &req.user_group_id).expect("This is an error")
@@ -82,14 +111,28 @@ async fn synced_with(req: web::Json<SyncedWithRequest>) -> Result<impl Responder
         .await
         .unwrap()
         .unwrap();
+    let user_groups = join_all(
+        query
+            .iter()
+            .map(|sync| slack::get_user_group(&sync.user_group_id)),
+    )
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>();
+
+    let user_groups = match user_groups {
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", e),
+            }));
+        }
+        Ok(ug) => ug,
+    };
 
     Ok(HttpResponse::Ok().json(SyncedWithResponse {
         oncall_id,
         oncall_name,
-        user_group_ids: query
-            .iter()
-            .map(|sync| sync.user_group_id.clone())
-            .collect(),
+        user_groups,
     }))
 }
 
@@ -102,6 +145,7 @@ async fn main() -> anyhow::Result<()> {
             .service(add_sync)
             .service(synced_with)
             .service(list_oncalls)
+            .service(list_user_groups)
     })
     .bind(("127.0.0.1", 8080))?
     .run()
