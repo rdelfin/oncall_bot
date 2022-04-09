@@ -11,8 +11,10 @@ anyhow = "1.0.56"
 diesel = { version = "1.4.4", features = ["sqlite"] }
 dotenv = "0.15.0"
 futures-util = "0.3.21"
+log = "0.4.16"
 reqwest = {version = "0.11.10", features = ["json"] }
 serde = { version = "1.0.136", features = ["derive"] }
+simple_logger = "2.1.0"
 thiserror = "1.0.30"
 tokio = { version = "1.17.0", features = ["full"] }
 url = "2.2.2"

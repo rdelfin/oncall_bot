@@ -4,6 +4,7 @@ extern crate diesel;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use dotenv::dotenv;
 use futures_util::future::join_all;
+use log::Level;
 use serde::{Deserialize, Serialize};
 use tokio::join;
 
@@ -208,6 +209,7 @@ async fn synced_with(req: web::Json<SyncedWithRequest>) -> Result<impl Responder
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    simple_logger::init_with_level(Level::Info).unwrap();
     dotenv().ok();
 
     HttpServer::new(move || {

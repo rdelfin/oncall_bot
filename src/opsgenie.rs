@@ -31,6 +31,19 @@ pub struct User {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct OncallParticipant {
+    id: String,
+    #[serde(rename = "type")]
+    typ: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CurrentOncall {
+    #[serde(rename = "onCallParticipants")]
+    on_call_participants: Vec<OncallParticipant>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct ScheduleListResponse {
     data: Vec<Schedule>,
 }
@@ -48,6 +61,11 @@ struct ListUsersResponse {
 #[derive(Serialize, Deserialize, Debug)]
 struct GetUserResponse {
     data: User,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct CurrentOncallResponse {
+    data: CurrentOncall,
 }
 
 pub async fn list_oncalls() -> Vec<Oncall> {
@@ -124,6 +142,38 @@ pub async fn get_user(id: &str) -> Result<User, Error> {
 
     match user_response.status() {
         reqwest::StatusCode::OK => Ok(user_response.json::<GetUserResponse>().await?.data),
+        code => Err(Error::HttpErrorCode(code)),
+    }
+}
+
+pub async fn get_current_oncalls(oncall_id: &str) -> Result<Vec<String>, Error> {
+    let opsgenie_key = opsgenie_key();
+    let client = reqwest::Client::new();
+    let oncall_response = client
+        .get(format!(
+            "https://api.opsgenie.com/v2/schedules/{}/on-calls",
+            oncall_id
+        ))
+        .header(AUTHORIZATION, format!("GenieKey {}", opsgenie_key))
+        .send()
+        .await
+        .unwrap();
+
+    match oncall_response.status() {
+        reqwest::StatusCode::OK => Ok(oncall_response
+            .json::<CurrentOncallResponse>()
+            .await?
+            .data
+            .on_call_participants
+            .into_iter()
+            .filter_map(|participant| {
+                if participant.typ == "user" {
+                    Some(participant.id)
+                } else {
+                    None
+                }
+            })
+            .collect()),
         code => Err(Error::HttpErrorCode(code)),
     }
 }
