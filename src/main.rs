@@ -13,6 +13,7 @@ mod models;
 mod opsgenie;
 mod schema;
 mod slack;
+mod sync;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct AddSyncRequest {
