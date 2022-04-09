@@ -29,6 +29,12 @@ pub struct User {
     is_bot: bool,
 }
 
+#[derive(Serialize, Debug)]
+pub struct UserGroupUpdateRequest<'a> {
+    usergroup: &'a str,
+    users: &'a [String],
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ListUsersResponse {
     members: Vec<User>,
@@ -70,6 +76,26 @@ pub async fn get_user_group(id: &str) -> Result<UserGroup, Error> {
         .into_iter()
         .find(|user_group| user_group.id == id)
         .ok_or_else(|| Error::UserGroupNotFound)
+}
+
+pub async fn set_user_group(id: &str, users: &[String]) -> Result<(), Error> {
+    let slack_oauth_token = slack_oauth_token();
+    let client = reqwest::Client::new();
+    let usergroups_response = client
+        .post("https://slack.com/api/usergroups.users.update")
+        .header(AUTHORIZATION, format!("Bearer {}", slack_oauth_token))
+        .json(&UserGroupUpdateRequest {
+            usergroup: &id,
+            users,
+        })
+        .send()
+        .await
+        .unwrap();
+
+    match usergroups_response.status() {
+        reqwest::StatusCode::OK => Ok(()),
+        error_code => Err(Error::HttpErrorCode(error_code)),
+    }
 }
 
 pub async fn list_users() -> Result<Vec<User>, Error> {
