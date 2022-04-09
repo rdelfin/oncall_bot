@@ -6,7 +6,9 @@ use dotenv::dotenv;
 use futures_util::future::join_all;
 use log::Level;
 use serde::{Deserialize, Serialize};
-use tokio::join;
+use std::{collections::HashMap, sync::Arc};
+use sync::Syncer;
+use tokio::{join, sync::Mutex};
 
 mod db;
 mod models;
@@ -62,6 +64,41 @@ struct AddUserMapRequest {
 #[derive(Serialize, Deserialize, Debug)]
 struct ErrorResponse {
     error: String,
+}
+
+#[derive(Debug, Eq, PartialEq, Hash)]
+struct SyncerKey {
+    oncall_id: String,
+    user_group_id: String,
+}
+
+#[derive(Debug, Clone)]
+struct AppState {
+    // Map of oncall ID to syncers
+    syncers: Arc<Mutex<HashMap<SyncerKey, Syncer>>>,
+}
+
+impl AppState {
+    async fn new() -> anyhow::Result<AppState> {
+        let conn = db::connection();
+        let syncs = web::block(move || db::list_oncall_syncs(&conn)).await??;
+        let syncers = syncs
+            .into_iter()
+            .map(|s| {
+                (
+                    SyncerKey {
+                        oncall_id: s.oncall_id.clone(),
+                        user_group_id: s.user_group_id.clone(),
+                    },
+                    Syncer::new(s.oncall_id, s.user_group_id),
+                )
+            })
+            .collect();
+
+        Ok(AppState {
+            syncers: Arc::new(Mutex::new(syncers)),
+        })
+    }
 }
 
 #[get("/list_slack_users")]
@@ -138,9 +175,11 @@ async fn add_user_map(req: web::Json<AddUserMapRequest>) -> Result<impl Responde
 }
 
 #[post("/add_sync")]
-async fn add_sync(req: web::Json<AddSyncRequest>) -> Result<impl Responder> {
+async fn add_sync(
+    req: web::Json<AddSyncRequest>,
+    data: web::Data<AppState>,
+) -> Result<impl Responder> {
     let conn = db::connection();
-
     // Verify oncall existence
     if let Err(opsgenie::Error::HttpErrorCode(code)) =
         opsgenie::get_oncall_name(&req.oncall_id).await
@@ -164,11 +203,28 @@ async fn add_sync(req: web::Json<AddSyncRequest>) -> Result<impl Responder> {
             })),
         }
     } else {
+        let oncall_id = req.oncall_id.clone();
+        let user_group_id = req.user_group_id.clone();
         let sync_res = web::block(move || {
-            db::add_sync(&conn, &req.oncall_id, &req.user_group_id).expect("This is an error")
+            db::add_sync(&conn, &oncall_id, &user_group_id).expect("This is an error")
         })
         .await
         .unwrap();
+
+        // Add a syncer if not already there
+        {
+            let key = SyncerKey {
+                oncall_id: req.oncall_id.clone(),
+                user_group_id: req.user_group_id.clone(),
+            };
+            let mut syncers = data.syncers.lock().await;
+            if !syncers.contains_key(&key) {
+                syncers.insert(
+                    key,
+                    Syncer::new(req.oncall_id.clone(), req.user_group_id.clone()),
+                );
+            }
+        }
         Ok(HttpResponse::Ok().json(sync_res))
     }
 }
@@ -213,8 +269,11 @@ async fn main() -> anyhow::Result<()> {
     simple_logger::init_with_level(Level::Info).unwrap();
     dotenv().ok();
 
+    let app_state = AppState::new().await?;
+
     HttpServer::new(move || {
         App::new()
+            .app_data(app_state.clone())
             .service(add_sync)
             .service(synced_with)
             .service(list_oncalls)

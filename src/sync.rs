@@ -6,8 +6,6 @@ use tokio::{
     time::sleep,
 };
 
-const MAX_CONCURRENT_USERMAPS: usize = 10;
-
 #[derive(Debug)]
 pub struct Syncer {
     jh: JoinHandle<()>,
