@@ -18,6 +18,15 @@ mod slack;
 mod sync;
 
 #[derive(Serialize, Deserialize, Debug)]
+struct OncallSync {
+    oncall_id: String,
+    oncall_name: String,
+    user_group_id: String,
+    user_group_name: String,
+    user_group_handle: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct AddSyncRequest {
     oncall_id: String,
     user_group_id: String,
@@ -30,18 +39,7 @@ struct SyncedWithRequest {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncedWithResponse {
-    oncall_id: String,
-    oncall_name: String,
-    user_groups: Vec<slack::UserGroup>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct OncallSync {
-    oncall_id: String,
-    oncall_name: String,
-    user_group_id: String,
-    user_group_name: String,
-    user_group_handle: String,
+    syncs: Vec<OncallSync>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -271,11 +269,18 @@ async fn synced_with(req: web::Json<SyncedWithRequest>) -> Result<impl Responder
         Ok(ug) => ug,
     };
 
-    Ok(HttpResponse::Ok().json(SyncedWithResponse {
-        oncall_id,
-        oncall_name,
-        user_groups,
-    }))
+    let syncs = user_groups
+        .into_iter()
+        .map(|user_group| OncallSync {
+            oncall_id: oncall_id.clone(),
+            oncall_name: oncall_name.clone(),
+            user_group_id: user_group.id,
+            user_group_name: user_group.name,
+            user_group_handle: user_group.handle,
+        })
+        .collect();
+
+    Ok(HttpResponse::Ok().json(SyncedWithResponse { syncs }))
 }
 
 #[get("/list_syncs")]
