@@ -27,6 +27,12 @@ struct OncallSync {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct UserMapping {
+    opsgenie_user_id: String,
+    slack_user_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct AddSyncRequest {
     oncall_id: String,
     user_group_id: String,
@@ -71,6 +77,11 @@ struct ListOpsgenieUsersResponse {
 struct AddUserMapRequest {
     slack_id: String,
     opsgenie_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ListUserMappingsResponse {
+    user_mappings: Vec<UserMapping>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -341,6 +352,27 @@ async fn list_syncs() -> Result<impl Responder> {
     Ok(HttpResponse::Ok().json(ListSyncsResponse { syncs }))
 }
 
+#[get("/list_user_mappings")]
+async fn list_user_mappings() -> Result<impl Responder> {
+    let user_mappings = web::block(|| {
+        let conn = db::connection();
+        db::list_user_mappings(&conn)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+
+    let user_mappings = user_mappings
+        .into_iter()
+        .map(|user_mapping| UserMapping {
+            opsgenie_user_id: user_mapping.opsgenie_id,
+            slack_user_id: user_mapping.slack_id,
+        })
+        .collect();
+
+    Ok(HttpResponse::Ok().json(ListUserMappingsResponse { user_mappings }))
+}
+
 async fn not_found() -> Result<impl Responder> {
     Ok(HttpResponse::NotFound().json(ErrorResponse {
         error: "the requested page does not exist".into(),
@@ -365,6 +397,7 @@ async fn main() -> anyhow::Result<()> {
             .service(list_opsgenie_users)
             .service(add_user_map)
             .service(list_syncs)
+            .service(list_user_mappings)
             .default_service(web::route().to(not_found))
     })
     .bind(("127.0.0.1", 8080))?

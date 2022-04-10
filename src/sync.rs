@@ -25,6 +25,7 @@ impl Syncer {
 }
 
 async fn oncall_sync(oncall_id: String, user_group_id: String) {
+    let sleep_time = Duration::from_secs(60);
     loop {
         info!(
             "Updating oncall_id {} and user_group_id {}",
@@ -70,6 +71,6 @@ async fn oncall_sync(oncall_id: String, user_group_id: String) {
             warn!("Failed to update user group {}: {}", user_group_id, e);
         }
 
-        sleep(Duration::from_secs(10)).await;
+        sleep(sleep_time).await;
     }
 }
