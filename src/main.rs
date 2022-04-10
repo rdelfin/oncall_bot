@@ -36,6 +36,20 @@ struct SyncedWithResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct OncallSync {
+    oncall_id: String,
+    oncall_name: String,
+    user_group_id: String,
+    user_group_name: String,
+    user_group_handle: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ListSyncsResponse {
+    syncs: Vec<OncallSync>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct ListOncallsResponse {
     oncalls: Vec<opsgenie::Oncall>,
 }
@@ -264,6 +278,64 @@ async fn synced_with(req: web::Json<SyncedWithRequest>) -> Result<impl Responder
     }))
 }
 
+#[get("/list_syncs")]
+async fn list_syncs() -> Result<impl Responder> {
+    let conn = db::connection();
+
+    let query = web::block(move || db::list_oncall_syncs(&conn))
+        .await
+        .unwrap()
+        .unwrap();
+    let user_groups = join_all(
+        query
+            .iter()
+            .map(|sync| slack::get_user_group(&sync.user_group_id)),
+    )
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>();
+    let oncalls = join_all(
+        query
+            .iter()
+            .map(|sync| opsgenie::get_oncall_name(&sync.oncall_id)),
+    )
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>();
+
+    let user_groups = match user_groups {
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", e),
+            }));
+        }
+        Ok(ug) => ug,
+    };
+    let oncalls = match oncalls {
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", e),
+            }));
+        }
+        Ok(oncalls) => oncalls,
+    };
+
+    let syncs = query
+        .into_iter()
+        .zip(user_groups.into_iter())
+        .zip(oncalls.into_iter())
+        .map(|((sync, user_group), oncall_name)| OncallSync {
+            oncall_id: sync.oncall_id,
+            oncall_name,
+            user_group_id: sync.user_group_id,
+            user_group_name: user_group.name,
+            user_group_handle: user_group.handle,
+        })
+        .collect();
+
+    Ok(HttpResponse::Ok().json(ListSyncsResponse { syncs }))
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     simple_logger::init_with_level(Level::Info).unwrap();
@@ -281,6 +353,7 @@ async fn main() -> anyhow::Result<()> {
             .service(list_slack_users)
             .service(list_opsgenie_users)
             .service(add_user_map)
+            .service(list_syncs)
     })
     .bind(("127.0.0.1", 8080))?
     .run()

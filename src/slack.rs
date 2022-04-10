@@ -16,9 +16,9 @@ pub enum Error {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UserGroup {
-    id: String,
-    name: String,
-    handle: String,
+    pub id: String,
+    pub name: String,
+    pub handle: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
