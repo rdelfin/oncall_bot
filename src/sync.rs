@@ -18,6 +18,7 @@ impl Syncer {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn wait(self) -> Result<(), JoinError> {
         self.jh.await
     }
