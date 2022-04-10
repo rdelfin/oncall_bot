@@ -336,6 +336,12 @@ async fn list_syncs() -> Result<impl Responder> {
     Ok(HttpResponse::Ok().json(ListSyncsResponse { syncs }))
 }
 
+async fn not_found() -> Result<impl Responder> {
+    Ok(HttpResponse::NotFound().json(ErrorResponse {
+        error: "the requested page does not exist".into(),
+    }))
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     simple_logger::init_with_level(Level::Info).unwrap();
@@ -354,6 +360,7 @@ async fn main() -> anyhow::Result<()> {
             .service(list_opsgenie_users)
             .service(add_user_map)
             .service(list_syncs)
+            .default_service(web::route().to(not_found))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
