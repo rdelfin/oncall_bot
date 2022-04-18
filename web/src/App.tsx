@@ -16,11 +16,13 @@ export default function App() {
     <div>
       <AppHeader />
       <Container maxWidth="lg">
-        <Routes>
-          <Route path="/" element={<h1>Home</h1>} />
-          <Route path="/users" element={<h1>Users</h1>} />
-          <Route path="/oncalls" element={<h1>Oncalls</h1>} />
-        </Routes>
+        <div style={{ padding: "3em" }}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/oncalls" element={<Oncalls />} />
+          </Routes>
+        </div>
       </Container>
     </div>
   );
