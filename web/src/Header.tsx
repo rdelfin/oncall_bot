@@ -11,8 +11,9 @@ import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
 import Tooltip from '@mui/material/Tooltip';
 import MenuItem from '@mui/material/MenuItem';
+import { Link } from "react-router-dom";
 
-const pages = ['Users', 'Oncalls'];
+const pages = [{title: 'Users', link: '/users'}, {title: 'Oncalls', link: '/oncalls'}];
 const settings = ['Account', 'Logout'];
 
 const AppHeader = () => {
@@ -77,8 +78,8 @@ const AppHeader = () => {
               }}
             >
               {pages.map((page) => (
-                <MenuItem key={page} onClick={handleCloseNavMenu}>
-                  <Typography textAlign="center">{page}</Typography>
+                <MenuItem key={page.title} onClick={handleCloseNavMenu}>
+                  <Link to={page.link}><Typography textAlign="center">{page.title}</Typography></Link>
                 </MenuItem>
               ))}
             </Menu>
@@ -93,13 +94,13 @@ const AppHeader = () => {
           </Typography>
           <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' } }}>
             {pages.map((page) => (
-              <Button
-                key={page}
+              <Link to={page.link}><Button
+                key={page.title}
                 onClick={handleCloseNavMenu}
                 sx={{ my: 2, color: 'white', display: 'block' }}
               >
-                {page}
-              </Button>
+                {page.title}
+              </Button></Link>
             ))}
           </Box>
 
