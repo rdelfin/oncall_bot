@@ -13,7 +13,7 @@ import Tooltip from '@mui/material/Tooltip';
 import MenuItem from '@mui/material/MenuItem';
 import { Link } from "react-router-dom";
 
-const pages = [{title: 'Users', link: '/users'}, {title: 'Oncalls', link: '/oncalls'}];
+const pages = [{title: 'Home', link: '/'}, {title: 'Users', link: '/users'}, {title: 'Oncalls', link: '/oncalls'}];
 const settings = ['Account', 'Logout'];
 
 const AppHeader = () => {
