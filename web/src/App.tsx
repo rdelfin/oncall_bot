@@ -8,7 +8,6 @@ import Home from "./Home";
 import Users from "./Users";
 import Oncalls from "./Oncalls";
 import { Routes, Route } from "react-router-dom";
-import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 
 export default function App() {
