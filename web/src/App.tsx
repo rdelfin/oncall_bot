@@ -1,5 +1,5 @@
-import React from 'react';
-import AppHeader from './Header'
+import React from "react";
+import AppHeader from "./Header";
 import { Routes, Route } from "react-router-dom";
 
 export default function App() {
