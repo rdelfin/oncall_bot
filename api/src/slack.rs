@@ -14,14 +14,14 @@ pub enum Error {
     UrlParseError(#[from] url::ParseError),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserGroup {
     pub id: String,
     pub name: String,
     pub handle: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User {
     id: String,
     name: String,
@@ -29,23 +29,23 @@ pub struct User {
     is_bot: bool,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct UserGroupUpdateRequest<'a> {
     usergroup: &'a str,
     users: &'a [String],
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ListUsersResponse {
     members: Vec<User>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetUserResponse {
     user: User,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserGroupsListResponse {
     ok: bool,
     usergroups: Vec<UserGroup>,

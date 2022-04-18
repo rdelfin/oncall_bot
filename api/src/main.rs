@@ -6,9 +6,13 @@ use dotenv::dotenv;
 use futures_util::future::join_all;
 use log::Level;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use sync::Syncer;
-use tokio::{join, sync::Mutex};
+use tokio::{
+    join,
+    sync::{Mutex, RwLock},
+    time::Instant,
+};
 
 mod db;
 mod models;
@@ -95,11 +99,14 @@ struct SyncerKey {
     user_group_id: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct AppState {
     // Map of oncall ID to syncers
-    syncers: Arc<Mutex<HashMap<SyncerKey, Syncer>>>,
+    syncers: Mutex<HashMap<SyncerKey, Syncer>>,
+    slack_user_cache: RwLock<Option<(Instant, Vec<slack::User>)>>,
 }
+
+const SLACK_REFRESH_PERIOD_S: u64 = 60;
 
 impl AppState {
     async fn new() -> anyhow::Result<AppState> {
@@ -119,20 +126,42 @@ impl AppState {
             .collect();
 
         Ok(AppState {
-            syncers: Arc::new(Mutex::new(syncers)),
+            syncers: Mutex::new(syncers),
+            slack_user_cache: RwLock::new(None),
         })
     }
 }
 
 #[get("/list_slack_users")]
-async fn list_slack_users() -> Result<impl Responder> {
-    let users = match slack::list_users().await {
-        Ok(users) => users,
-        Err(e) => {
-            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                error: format!("{:?}", e),
-            }));
-        }
+async fn list_slack_users(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
+    let last_update = {
+        let lock_guard = data.slack_user_cache.read().await;
+        lock_guard.as_ref().map(|(ts, _)| ts.clone())
+    };
+    let should_update = match last_update {
+        None => true,
+        Some(ts) => ts.elapsed() > Duration::from_secs(SLACK_REFRESH_PERIOD_S),
+    };
+
+    let users = if should_update {
+        let users = match slack::list_users().await {
+            Ok(users) => users,
+            Err(e) => {
+                return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    error: format!("{:?}", e),
+                }));
+            }
+        };
+        let mut lock_guard = data.slack_user_cache.write().await;
+        *lock_guard = Some((Instant::now(), users.clone()));
+        users
+    } else {
+        data.slack_user_cache
+            .read()
+            .await
+            .as_ref()
+            .map(|(_, data)| data.clone())
+            .unwrap_or(vec![])
     };
     Ok(HttpResponse::Ok().json(ListSlackUsersResponse { users }))
 }
@@ -200,7 +229,7 @@ async fn add_user_map(req: web::Json<AddUserMapRequest>) -> Result<impl Responde
 #[post("/add_sync")]
 async fn add_sync(
     req: web::Json<AddSyncRequest>,
-    data: web::Data<AppState>,
+    data: web::Data<Arc<AppState>>,
 ) -> Result<impl Responder> {
     let conn = db::connection();
     // Verify oncall existence
@@ -384,11 +413,11 @@ async fn main() -> anyhow::Result<()> {
     simple_logger::init_with_level(Level::Info).unwrap();
     dotenv().ok();
 
-    let app_state = AppState::new().await?;
+    let app_state = Arc::new(AppState::new().await?);
 
     HttpServer::new(move || {
         App::new()
-            .app_data(app_state.clone())
+            .app_data(web::Data::new(app_state.clone()))
             .service(add_sync)
             .service(synced_with)
             .service(list_oncalls)
