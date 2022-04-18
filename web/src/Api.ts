@@ -2,8 +2,6 @@
  * @prettier
  */
 
-const api_endpoint = "http://localhost:8080";
-
 export interface SlackUser {
   id: string;
   name: string;
@@ -38,13 +36,13 @@ export interface ListUserMappingsResponse {
 }
 
 export function ListOpsgenieUsers(): Promise<ListOpsgenieUsersResponse> {
-  return fetch(`${api_endpoint}/list_opsgenie_users`).then((res) => res.json());
+  return fetch("/api/list_opsgenie_users").then((res) => res.json());
 }
 
 export function ListSlackUsers(): Promise<ListSlackUsersResponse> {
-  return fetch(`${api_endpoint}/list_slack_users`).then((res) => res.json());
+  return fetch("/api/list_slack_users").then((res) => res.json());
 }
 
 export function ListUserMappings(): Promise<UserMapping> {
-  return fetch(`${api_endpoint}/list_user_mappings`).then((res) => res.json());
+  return fetch("/api/list_user_mappings").then((res) => res.json());
 }
