@@ -2,7 +2,7 @@
  * @prettier
  */
 
-import React, { useState} from "react";
+import React, { useState } from "react";
 import { styled } from "@mui/material/styles";
 import Grid from "@mui/material/Grid";
 import Paper from "@mui/material/Paper";
@@ -35,7 +35,7 @@ export default function Oncalls() {
         console.log("Error fetching oncalls: " + error);
         setLoaded(true);
       }
-    )
+    );
   }, []);
 
   if (loaded) {
@@ -44,9 +44,7 @@ export default function Oncalls() {
         {oncalls.map((oncall) => {
           return (
             <Grid item xs={4}>
-              <Item>
-                {oncall.name}
-              </Item>
+              <Item>{oncall.name}</Item>
             </Grid>
           );
         })}

@@ -4,28 +4,47 @@
 
 import React, { useState } from "react";
 import { styled } from "@mui/material/styles";
+import Card from "@mui/material/Card";
 import Grid from "@mui/material/Grid";
-import Paper from "@mui/material/Paper";
 import CircularProgress from "@mui/material/CircularProgress";
-import { SlackUser, OpsgenieUser, UserMapping, ListSlackUsers } from "./Api";
-
-const Item = styled(Paper)(({ theme }) => ({
-  backgroundColor: theme.palette.mode === "dark" ? "#1A2027" : "#fff",
-  ...theme.typography.body2,
-  padding: theme.spacing(1),
-  textAlign: "center",
-  color: theme.palette.text.secondary,
-}));
+import Typography from "@mui/material/Typography";
+import {
+  SlackUser,
+  UserMapping,
+  ListSlackUsers,
+  OpsgenieUser,
+  ListOpsgenieUsers,
+} from "./Api";
+import UserCard from "./components/UserCard";
+import LoadCard from "./components/LoadCard";
 
 export default function Users() {
   const [slackUsers, setSlackUsers] = useState<SlackUser[]>([]);
+  const [opsgenieUsers, setOpsgenieUsers] = useState<OpsgenieUser[]>([]);
   const [loaded, setLoaded] = useState<boolean>(false);
 
   React.useEffect(() => {
     ListSlackUsers().then(
       (result) => {
-        if (result.users) {
+        if (result.users !== undefined && result.users !== null) {
           setSlackUsers(result.users);
+        } else {
+          console.log("Error fetching slack users: " + result.error);
+        }
+        setLoaded(true);
+      },
+      (error) => {
+        console.log("Error fetching slack users: " + error);
+        setLoaded(true);
+      }
+    );
+  }, []);
+
+  React.useEffect(() => {
+    ListOpsgenieUsers().then(
+      (result) => {
+        if (result.users !== undefined && result.users !== null) {
+          setOpsgenieUsers(result.users);
         } else {
           console.log("Error fetching slack users: " + result.error);
         }
@@ -44,11 +63,7 @@ export default function Users() {
         {slackUsers.map((slack_user) => {
           return (
             <Grid item xs={4}>
-              <Item>
-                {slack_user.real_name}
-                <br />
-                {slack_user.name}
-              </Item>
+              <UserCard slack_user={slack_user} />
             </Grid>
           );
         })}
@@ -58,9 +73,7 @@ export default function Users() {
     return (
       <Grid container>
         <Grid item xs={12}>
-          <Item>
-            <CircularProgress />
-          </Item>
+          <LoadCard />
         </Grid>
       </Grid>
     );

@@ -41,8 +41,8 @@ export interface ListUserMappingsResponse {
 }
 
 export interface ListOncallsResponse {
-    oncalls?: Oncall[],
-    error?: string;
+  oncalls?: Oncall[];
+  error?: string;
 }
 
 export function ListOpsgenieUsers(): Promise<ListOpsgenieUsersResponse> {
