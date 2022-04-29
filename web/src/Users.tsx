@@ -3,25 +3,13 @@
  */
 
 import React, { useState } from "react";
-import { styled } from "@mui/material/styles";
-import Card from "@mui/material/Card";
 import Grid from "@mui/material/Grid";
-import CircularProgress from "@mui/material/CircularProgress";
-import Typography from "@mui/material/Typography";
-import {
-  SlackUser,
-  UserMapping,
-  ListSlackUsers,
-  OpsgenieUser,
-  ListOpsgenieUsers,
-  ListUserMappings,
-} from "./Api";
+import { SlackUser, ListSlackUsers, ListUserMappings } from "./Api";
 import UserCard from "./components/UserCard";
 import LoadCard from "./components/LoadCard";
 
 export default function Users() {
   const [slackUsers, setSlackUsers] = useState<SlackUser[]>([]);
-  const [opsgenieUsers, setOpsgenieUsers] = useState<OpsgenieUser[]>([]);
   const [userMappings, setUserMappings] = useState<{
     [slack_name: string]: string;
   }>({});
@@ -29,20 +17,6 @@ export default function Users() {
 
   React.useEffect(() => {
     let slack_users_promise = ListSlackUsers().then(
-      (result) => {
-        if (result.users !== undefined && result.users !== null) {
-          return result.users;
-        }
-        console.log("Error fetching slack users: " + result.error);
-        return [];
-      },
-      (error) => {
-        console.log("Error fetching slack users: " + error);
-        return [];
-      }
-    );
-
-    let opsgenie_users_promise = ListOpsgenieUsers().then(
       (result) => {
         if (result.users !== undefined && result.users !== null) {
           return result.users;
@@ -73,23 +47,20 @@ export default function Users() {
       }
     );
 
-    Promise.all([
-      slack_users_promise,
-      opsgenie_users_promise,
-      user_mappings_promise,
-    ]).then(([slack_users, opsgenie_users, user_mappings]) => {
-      setSlackUsers(slack_users);
-      setOpsgenieUsers(opsgenie_users);
-      setUserMappings(
-        Object.assign(
-          {},
-          ...user_mappings.map((user_mapping) => ({
-            [user_mapping.slack_user_id]: user_mapping.opsgenie_user_id,
-          }))
-        )
-      );
-      setLoaded(true);
-    });
+    Promise.all([slack_users_promise, user_mappings_promise]).then(
+      ([slack_users, user_mappings]) => {
+        setSlackUsers(slack_users);
+        setUserMappings(
+          Object.assign(
+            {},
+            ...user_mappings.map((user_mapping) => ({
+              [user_mapping.slack_user_id]: user_mapping.opsgenie_user_id,
+            }))
+          )
+        );
+        setLoaded(true);
+      }
+    );
   }, []);
 
   if (loaded) {
