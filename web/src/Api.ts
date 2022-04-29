@@ -53,7 +53,7 @@ export function ListSlackUsers(): Promise<ListSlackUsersResponse> {
   return fetch("/api/list_slack_users").then((res) => res.json());
 }
 
-export function ListUserMappings(): Promise<UserMapping> {
+export function ListUserMappings(): Promise<ListUserMappingsResponse> {
   return fetch("/api/list_user_mappings").then((res) => res.json());
 }
 
