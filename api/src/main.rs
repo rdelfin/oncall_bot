@@ -48,6 +48,11 @@ struct SyncedWithRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct GetSlackUserMappingRequest {
+    slack_user_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct SyncedWithResponse {
     syncs: Vec<OncallSync>,
 }
@@ -86,6 +91,11 @@ struct AddUserMapRequest {
 #[derive(Serialize, Deserialize, Debug)]
 struct ListUserMappingsResponse {
     user_mappings: Vec<UserMapping>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct GetSlackUserMappingResponse {
+    opsgenie_user_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -402,6 +412,23 @@ async fn list_user_mappings() -> Result<impl Responder> {
     Ok(HttpResponse::Ok().json(ListUserMappingsResponse { user_mappings }))
 }
 
+#[get("/get_slack_user_mapping")]
+async fn get_slack_user_mapping(
+    info: web::Query<GetSlackUserMappingRequest>,
+) -> Result<impl Responder> {
+    let slack_user_id = info.into_inner().slack_user_id;
+    let opsgenie_user_id = web::block(move || {
+        let conn = db::connection();
+        db::get_slack_user_mapping(&conn, &slack_user_id)
+    })
+    .await
+    .unwrap()
+    .unwrap()
+    .map(|um| um.opsgenie_id);
+
+    Ok(HttpResponse::Ok().json(GetSlackUserMappingResponse { opsgenie_user_id }))
+}
+
 async fn not_found() -> Result<impl Responder> {
     Ok(HttpResponse::NotFound().json(ErrorResponse {
         error: "the requested page does not exist".into(),
@@ -427,6 +454,7 @@ async fn main() -> anyhow::Result<()> {
             .service(add_user_map)
             .service(list_syncs)
             .service(list_user_mappings)
+            .service(get_slack_user_mapping)
             .default_service(web::route().to(not_found))
     })
     .bind(("127.0.0.1", 8080))?
