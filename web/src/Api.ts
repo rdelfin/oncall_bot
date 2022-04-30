@@ -49,6 +49,12 @@ export interface GetSlackUserMappingResponse {
   opsgenie_user_id?: string | null;
 }
 
+export interface AddUserMapResponse {
+  opsgenie_user_id?: string | null;
+  slack_user_id?: string | null;
+  error?: string | null;
+}
+
 export function ListOpsgenieUsers(): Promise<ListOpsgenieUsersResponse> {
   return fetch("/api/list_opsgenie_users").then((res) => res.json());
 }
@@ -73,4 +79,18 @@ export function GetSlackUserMapping(
       slack_user_id
     )}`
   ).then((res) => res.json());
+}
+
+export function AddUserMap(
+  slack_user_id: string,
+  opsgenie_user_id: string
+): Promise<AddUserMapResponse> {
+  return fetch("/api/add_user_map", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      slack_id: slack_user_id,
+      opsgenie_id: opsgenie_user_id,
+    }),
+  }).then((res) => res.json());
 }
