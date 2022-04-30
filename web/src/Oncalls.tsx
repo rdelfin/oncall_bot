@@ -4,7 +4,6 @@
 
 import React, { useState } from "react";
 import Grid from "@mui/material/Grid";
-import CircularProgress from "@mui/material/CircularProgress";
 import { Oncall, ListOncalls } from "./Api";
 import OncallCard from "./components/OncallCard";
 import LoadCard from "./components/LoadCard";

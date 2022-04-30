@@ -132,7 +132,6 @@ export default function UserMapDialog(props: UserMapDialogProps) {
           </DialogContentText>
           <DialogContentText>{has_user_mapping_text}</DialogContentText>
           <Autocomplete
-            disablePortal
             id="opsgenie-user-link"
             options={opsgenieUserFields}
             fullWidth
