@@ -292,12 +292,12 @@ async fn add_sync(
 }
 
 #[get("/synced_with")]
-async fn synced_with(req: web::Json<SyncedWithRequest>) -> Result<impl Responder> {
+async fn synced_with(info: web::Query<SyncedWithRequest>) -> Result<impl Responder> {
     let conn = db::connection();
-    let oncall_id = req.oncall_id.clone();
+    let oncall_id = info.oncall_id.clone();
     let oncall_name = opsgenie::get_oncall_name(&oncall_id).await.unwrap();
 
-    let query = web::block(move || db::get_syncs(&conn, &req.oncall_id))
+    let query = web::block(move || db::get_syncs(&conn, &info.oncall_id))
         .await
         .unwrap()
         .unwrap();
