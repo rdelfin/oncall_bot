@@ -4,18 +4,15 @@
 
 import React, { useState } from "react";
 
-import Grid from "@mui/material/Grid";
 import Autocomplete from "@mui/material/Autocomplete";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
-import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 import Paper from "@mui/material/Paper";
 import TextField from "@mui/material/TextField";
 import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
@@ -35,8 +32,6 @@ import {
 interface UserMapDialogProps {
   oncall: Oncall;
 }
-
-const user_groups = [{ label: "a", key: "a" }];
 
 export default function OncallDialog(props: UserMapDialogProps) {
   const [open, setOpen] = useState<boolean>(false);
