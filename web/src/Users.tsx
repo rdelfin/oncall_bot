@@ -63,8 +63,8 @@ export default function Users() {
     );
   }, []);
 
-  if (loaded) {
-    return (
+  return (
+    <div>
       <Grid container spacing={2}>
         {slackUsers.map((slack_user) => {
           let is_synced = slack_user.id in userMappings;
@@ -75,14 +75,7 @@ export default function Users() {
           );
         })}
       </Grid>
-    );
-  } else {
-    return (
-      <Grid container>
-        <Grid item xs={12}>
-          <LoadCard />
-        </Grid>
-      </Grid>
-    );
-  }
+      <LoadCard open={!loaded} />
+    </div>
+  );
 }

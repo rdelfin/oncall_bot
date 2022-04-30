@@ -30,8 +30,8 @@ export default function Oncalls() {
     );
   }, []);
 
-  if (loaded) {
-    return (
+  return (
+    <div>
       <Grid container spacing={2}>
         {oncalls.map((oncall) => (
           <Grid item xs={4}>
@@ -39,14 +39,7 @@ export default function Oncalls() {
           </Grid>
         ))}
       </Grid>
-    );
-  } else {
-    return (
-      <Grid container>
-        <Grid item xs={12}>
-          <LoadCard />
-        </Grid>
-      </Grid>
-    );
-  }
+      <LoadCard open={!loaded} />
+    </div>
+  );
 }

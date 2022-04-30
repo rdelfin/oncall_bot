@@ -1,10 +1,18 @@
-import CircularProgress from "@mui/material/CircularProgress";
-import Card from "@mui/material/Card";
+/**
+ * @prettier
+ */
 
-export default function LoadCard() {
+import CircularProgress from "@mui/material/CircularProgress";
+import Backdrop from "@mui/material/Backdrop";
+
+interface LoadCardProps {
+  open: boolean;
+}
+
+export default function LoadCard(props: LoadCardProps) {
   return (
-    <Card sx={{ minWidth: 275 }}>
-      <CircularProgress />
-    </Card>
+    <Backdrop open={props.open}>
+      <CircularProgress color="inherit" />
+    </Backdrop>
   );
 }
