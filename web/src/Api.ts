@@ -45,6 +45,10 @@ export interface ListOncallsResponse {
   error?: string;
 }
 
+export interface GetSlackUserMappingResponse {
+  opsgenie_user_id?: string | null;
+}
+
 export function ListOpsgenieUsers(): Promise<ListOpsgenieUsersResponse> {
   return fetch("/api/list_opsgenie_users").then((res) => res.json());
 }
@@ -59,4 +63,14 @@ export function ListUserMappings(): Promise<ListUserMappingsResponse> {
 
 export function ListOncalls(): Promise<ListOncallsResponse> {
   return fetch("/api/list_oncalls").then((res) => res.json());
+}
+
+export function GetSlackUserMapping(
+  slack_user_id: string
+): Promise<GetSlackUserMappingResponse> {
+  return fetch(
+    `/api/get_slack_user_mapping?slack_user_id=${encodeURIComponent(
+      slack_user_id
+    )}`
+  ).then((res) => res.json());
 }

@@ -10,6 +10,7 @@ import Typography from "@mui/material/Typography";
 import { purple, red } from "@mui/material/colors";
 
 import { SlackUser } from "../Api";
+import UserMapDialog from "./UserMapDialog";
 
 interface UserCardProps {
   slack_user: SlackUser;
@@ -31,7 +32,7 @@ export default function UserCard(props: UserCardProps) {
           <Typography sx={{ mb: 1.5 }} color="text.secondary"></Typography>
         </CardContent>
         <CardActions>
-          <Button size="large">Link to Opsgenie</Button>
+          <UserMapDialog slack_user={props.slack_user} />
         </CardActions>
       </Card>
     );
