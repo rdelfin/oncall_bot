@@ -12,6 +12,8 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 import TextField from "@mui/material/TextField";
+import Fab from "@mui/material/Fab";
+import DeleteIcon from "@mui/icons-material/Delete";
 
 import { useSnackbar } from "notistack";
 
@@ -21,6 +23,7 @@ import {
   OpsgenieUser,
   ListOpsgenieUsers,
   AddUserMap,
+  RemoveUserMap,
 } from "../Api";
 
 interface UserMapDialogProps {
@@ -31,29 +34,24 @@ export default function UserMapDialog(props: UserMapDialogProps) {
   const [open, setOpen] = useState<boolean>(false);
   const [updating, setUpdating] = useState<boolean>(false);
   const [opsgenieUsers, setOpsgenieUsers] = useState<OpsgenieUser[]>([]);
-  const [hasUserMapping, setHasUserMapping] = useState<boolean | null>(null);
+  const [userMappingId, setUserMappingId] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { enqueueSnackbar } = useSnackbar();
 
   const handleClickOpen = () => {
-    setHasUserMapping(null);
+    setUpdating(true);
+    setUserMappingId(null);
     setOpen(true);
-    GetSlackUserMapping(props.slack_user.id).then(
-      (result) => {
-        if (
-          result.opsgenie_user_id !== undefined &&
-          result.opsgenie_user_id !== null
-        ) {
-          setHasUserMapping(true);
-        } else {
-          setHasUserMapping(false);
+    GetSlackUserMapping(props.slack_user.id)
+      .then((result) => {
+        if (result.user_mapping !== undefined && result.user_mapping !== null) {
+          setUserMappingId(result.user_mapping.id);
         }
-      },
-      (error) => {
-        setHasUserMapping(false);
-      }
-    );
+      })
+      .finally(() => {
+        setUpdating(false);
+      });
 
     ListOpsgenieUsers().then(
       (result) => {
@@ -86,33 +84,95 @@ export default function UserMapDialog(props: UserMapDialogProps) {
       });
     } else {
       setUpdating(true);
-      AddUserMap(props.slack_user.id, selectedId).then(
-        (result) => {
-          if (result.error !== undefined && result.error !== null) {
-            enqueueSnackbar(`Error submitting user mapping: ${result.error}`, {
+      AddUserMap(props.slack_user.id, selectedId)
+        .then(
+          (result) => {
+            if (result.error !== undefined && result.error !== null) {
+              enqueueSnackbar(
+                `Error submitting user mapping: ${result.error}`,
+                {
+                  variant: "error",
+                }
+              );
+            }
+          },
+          (error) => {
+            enqueueSnackbar(`Error submitting user mapping: ${error}`, {
               variant: "error",
             });
-          } else {
-            // If all goes well
-            setOpen(false);
           }
-        },
-        (error) => {
-          enqueueSnackbar(`Error submitting user mapping: ${error}`, {
-            variant: "error",
-          });
-        }
-      );
-      setOpen(false);
+        )
+        .finally(() => {
+          setOpen(false);
+        });
     }
   };
 
-  let has_user_mapping_text = hasUserMapping
-    ? "User already mapped to opsgenie"
-    : "No user mapping";
+  const handleRemove = (event: React.MouseEvent<HTMLElement>) => {
+    if (userMappingId === null) {
+      enqueueSnackbar(
+        "User mapping ID not set while trying to delete user mapping. Please refresh",
+        {
+          variant: "error",
+        }
+      );
+    } else {
+      setUpdating(true);
+      RemoveUserMap(userMappingId)
+        .then(
+          (result) => {
+            if (result.error !== undefined && result.error !== null) {
+              enqueueSnackbar(`Error removing user mapping: ${result.error}`, {
+                variant: "error",
+              });
+            }
+          },
+          (error) => {
+            enqueueSnackbar(`Error removing user mapping: ${error}`, {
+              variant: "error",
+            });
+          }
+        )
+        .finally(() => {
+          setOpen(false);
+        });
+    }
+  };
+
   let opsgenieUserFields = opsgenieUsers.map((user) => {
     return { label: user.fullName, key: user.id };
   });
+
+  const remove_input_elements =
+    userMappingId !== null ? (
+      <Fab
+        variant="extended"
+        color="primary"
+        aria-label="add"
+        disabled={updating}
+        onClick={handleRemove}
+      >
+        <DeleteIcon sx={{ mr: 1 }} />
+        Remove Link
+      </Fab>
+    ) : (
+      <Autocomplete
+        id="opsgenie-user-link"
+        options={opsgenieUserFields}
+        fullWidth
+        disabled={updating}
+        onChange={(event, opsgenie_user) => {
+          if (opsgenie_user === null || opsgenie_user === undefined) {
+            setSelectedId(null);
+          } else {
+            setSelectedId(opsgenie_user.key);
+          }
+        }}
+        renderInput={(params) => (
+          <TextField {...params} label="Opsgenie User" />
+        )}
+      />
+    );
 
   return (
     <div>
@@ -125,23 +185,7 @@ export default function UserMapDialog(props: UserMapDialogProps) {
           <DialogContentText>
             Use this to map slack users to opsgenie users.
           </DialogContentText>
-          <DialogContentText>{has_user_mapping_text}</DialogContentText>
-          <Autocomplete
-            id="opsgenie-user-link"
-            options={opsgenieUserFields}
-            fullWidth
-            disabled={updating}
-            onChange={(event, opsgenie_user) => {
-              if (opsgenie_user === null || opsgenie_user === undefined) {
-                setSelectedId(null);
-              } else {
-                setSelectedId(opsgenie_user.key);
-              }
-            }}
-            renderInput={(params) => (
-              <TextField {...params} label="Opsgenie User" />
-            )}
-          />
+          {remove_input_elements}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose} disabled={updating}>
