@@ -20,6 +20,8 @@ import TableRow from "@mui/material/TableRow";
 import Fab from "@mui/material/Fab";
 import AddIcon from "@mui/icons-material/Add";
 
+import { useSnackbar } from "notistack";
+
 import {
   Oncall,
   ListUserGroups,
@@ -40,6 +42,8 @@ export default function OncallDialog(props: UserMapDialogProps) {
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const { enqueueSnackbar } = useSnackbar();
+
   const handleClickOpen = () => {
     setOpen(true);
     ListUserGroups().then(
@@ -47,24 +51,31 @@ export default function OncallDialog(props: UserMapDialogProps) {
         if (result.user_groups !== undefined && result.user_groups !== null) {
           setUserGroups(result.user_groups);
         } else {
-          console.log("Error fetching user groups: " + result.error);
+          enqueueSnackbar(`Error fetching user groups: ${result.error}`, {
+            variant: "error",
+          });
         }
       },
       (error) => {
-        console.log("Error fetching user groups: " + error);
+        enqueueSnackbar(`Error fetching user groups: ${error}`, {
+          variant: "error",
+        });
       }
     );
-    console.log(`Oncall name: ${props.oncall.name}; ID: ${props.oncall.id}`);
     SyncedWith(props.oncall.id).then(
       (result) => {
         if (result.syncs !== undefined && result.syncs !== null) {
           setCurrentSyncs(result.syncs);
         } else {
-          console.log("Error fetching user groups: " + result.error);
+          enqueueSnackbar(`Error fetching user groups: ${result.error}`, {
+            variant: "error",
+          });
         }
       },
       (error) => {
-        console.log("Error fetching user groups: " + error);
+        enqueueSnackbar(`Error fetching user groups: ${error}`, {
+          variant: "error",
+        });
       }
     );
   };
@@ -80,18 +91,19 @@ export default function OncallDialog(props: UserMapDialogProps) {
       console.log("No item selected");
     } else {
       setSubmitting(true);
-      console.log(
-        `Adding sync for oncall: ${props.oncall.id}; ang group ${selectedId}`
-      );
       AddSync(props.oncall.id, selectedId)
         .then(
           (result) => {
             if (result.error !== undefined && result.error !== null) {
-              console.log("Error adding oncall sync: " + result.error);
+              enqueueSnackbar(`Error adding oncall sync: ${result.error}`, {
+                variant: "error",
+              });
             }
           },
           (error) => {
-            console.log("Error adding oncall sync: " + error);
+            enqueueSnackbar(`Error adding oncall sync: ${error}`, {
+              variant: "error",
+            });
           }
         )
         .then((result) => SyncedWith(props.oncall.id))
@@ -100,12 +112,16 @@ export default function OncallDialog(props: UserMapDialogProps) {
             if (result.syncs !== undefined && result.syncs !== null) {
               setCurrentSyncs(result.syncs);
             } else {
-              console.log("Error fetching user groups: " + result.error);
+              enqueueSnackbar(`Error fetching user groups: ${result.error}`, {
+                variant: "error",
+              });
             }
             setSubmitting(false);
           },
           (error) => {
-            console.log("Error fetching user groups: " + error);
+            enqueueSnackbar(`Error fetching user groups: ${error}`, {
+              variant: "error",
+            });
             setSubmitting(false);
           }
         );

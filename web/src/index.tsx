@@ -9,12 +9,20 @@ import "./index.css";
 import App from "./App";
 import reportWebVitals from "./reportWebVitals";
 import CssBaseline from "@mui/material/CssBaseline";
+import { SnackbarProvider } from "notistack";
 
 ReactDOM.render(
   <BrowserRouter>
     <React.StrictMode>
-      <CssBaseline />
-      <App />
+      <SnackbarProvider
+        anchorOrigin={{
+          vertical: "top",
+          horizontal: "center",
+        }}
+      >
+        <CssBaseline />
+        <App />
+      </SnackbarProvider>
     </React.StrictMode>
   </BrowserRouter>,
   document.getElementById("root")

@@ -4,7 +4,6 @@
 
 import React, { useState } from "react";
 
-import MuiAlert from "@mui/material/Alert";
 import Autocomplete from "@mui/material/Autocomplete";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
@@ -13,7 +12,8 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 import TextField from "@mui/material/TextField";
-import Snackbar from "@mui/material/Snackbar";
+
+import { useSnackbar } from "notistack";
 
 import {
   GetSlackUserMapping,
@@ -34,8 +34,7 @@ export default function UserMapDialog(props: UserMapDialogProps) {
   const [hasUserMapping, setHasUserMapping] = useState<boolean | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const [errorMessage, setErrorMessage] = useState<string>("");
-  const [displayingError, setDisplayingError] = useState<boolean>(false);
+  const { enqueueSnackbar } = useSnackbar();
 
   const handleClickOpen = () => {
     setHasUserMapping(null);
@@ -61,11 +60,15 @@ export default function UserMapDialog(props: UserMapDialogProps) {
         if (result.users !== undefined && result.users !== null) {
           setOpsgenieUsers(result.users);
         } else {
-          console.log("Error fetching opsgenie users: " + result.error);
+          enqueueSnackbar(`Error fetching opsgenie users: ${result.error}`, {
+            variant: "error",
+          });
         }
       },
       (error) => {
-        console.log("Error fetching opsgenie users: " + error);
+        enqueueSnackbar(`Error fetching opsgenie users: ${error}`, {
+          variant: "error",
+        });
       }
     );
   };
@@ -78,38 +81,30 @@ export default function UserMapDialog(props: UserMapDialogProps) {
 
   const handleSubmit = () => {
     if (selectedId === null) {
-      setErrorMessage("You need to select a mapped user");
-      setDisplayingError(true);
+      enqueueSnackbar("You need to select a mapped user", {
+        variant: "error",
+      });
     } else {
       setUpdating(true);
       AddUserMap(props.slack_user.id, selectedId).then(
         (result) => {
           if (result.error !== undefined && result.error !== null) {
-            setErrorMessage(result.error);
-            setDisplayingError(true);
+            enqueueSnackbar(`Error submitting user mapping: ${result.error}`, {
+              variant: "error",
+            });
           } else {
             // If all goes well
             setOpen(false);
           }
         },
         (error) => {
-          setErrorMessage(error);
-          setDisplayingError(true);
+          enqueueSnackbar(`Error submitting user mapping: ${error}`, {
+            variant: "error",
+          });
         }
       );
       setOpen(false);
     }
-  };
-
-  const handleErrorClose = (
-    event?: React.SyntheticEvent | Event,
-    reason?: string
-  ) => {
-    if (reason === "clickaway") {
-      return;
-    }
-
-    setDisplayingError(false);
   };
 
   let has_user_mapping_text = hasUserMapping
@@ -157,22 +152,6 @@ export default function UserMapDialog(props: UserMapDialogProps) {
           </Button>
         </DialogActions>
       </Dialog>
-      <Snackbar
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-        open={displayingError}
-        onClose={handleClose}
-        message="Error"
-      >
-        <MuiAlert
-          elevation={6}
-          variant="filled"
-          onClose={handleErrorClose}
-          severity="error"
-          sx={{ width: "100%" }}
-        >
-          {errorMessage}
-        </MuiAlert>
-      </Snackbar>
     </div>
   );
 }
