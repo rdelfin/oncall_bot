@@ -179,11 +179,11 @@ export default function UserMapDialog(props: UserMapDialogProps) {
       <Button size="large" onClick={handleClickOpen}>
         Link to Opsgenie
       </Button>
-      <Dialog open={open} onClose={handleClose}>
+      <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
         <DialogTitle>Link to Opsgenie</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Use this to map slack users to opsgenie users.
+            {props.slack_user.real_name ?? props.slack_user.name}
           </DialogContentText>
           {remove_input_elements}
         </DialogContent>
