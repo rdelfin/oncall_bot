@@ -228,11 +228,21 @@ async fn add_user_map(req: web::Json<AddUserMapRequest>) -> Result<impl Responde
     }
 
     let conn = db::connection();
-    let add_res = web::block(move || {
-        db::add_user_mapping(&conn, &req.opsgenie_id, &req.slack_id).expect("This is an error")
+    let add_res = match web::block(move || {
+        db::add_user_mapping(&conn, &req.opsgenie_id, &req.slack_id)
     })
     .await
-    .unwrap();
+    {
+        Err(blocking_error) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", blocking_error),
+            }));
+        }
+        Ok(Err(db_error)) => {
+            return Ok(db_error.into());
+        }
+        Ok(Ok(res)) => res,
+    };
     Ok(HttpResponse::Ok().json(add_res))
 }
 
@@ -267,11 +277,18 @@ async fn add_sync(
     } else {
         let oncall_id = req.oncall_id.clone();
         let user_group_id = req.user_group_id.clone();
-        let sync_res = web::block(move || {
-            db::add_sync(&conn, &oncall_id, &user_group_id).expect("This is an error")
-        })
-        .await
-        .unwrap();
+        let sync_res =
+            match web::block(move || db::add_sync(&conn, &oncall_id, &user_group_id)).await {
+                Err(blocking_error) => {
+                    return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                        error: format!("{:?}", blocking_error),
+                    }));
+                }
+                Ok(Err(db_error)) => {
+                    return Ok(db_error.into());
+                }
+                Ok(Ok(res)) => res,
+            };
 
         // Add a syncer if not already there
         {
@@ -297,10 +314,17 @@ async fn synced_with(info: web::Query<SyncedWithRequest>) -> Result<impl Respond
     let oncall_id = info.oncall_id.clone();
     let oncall_name = opsgenie::get_oncall_name(&oncall_id).await.unwrap();
 
-    let query = web::block(move || db::get_syncs(&conn, &info.oncall_id))
-        .await
-        .unwrap()
-        .unwrap();
+    let query = match web::block(move || db::get_syncs(&conn, &info.oncall_id)).await {
+        Err(blocking_error) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", blocking_error),
+            }));
+        }
+        Ok(Err(db_error)) => {
+            return Ok(db_error.into());
+        }
+        Ok(Ok(res)) => res,
+    };
     let user_groups = join_all(
         query
             .iter()
@@ -337,10 +361,17 @@ async fn synced_with(info: web::Query<SyncedWithRequest>) -> Result<impl Respond
 async fn list_syncs() -> Result<impl Responder> {
     let conn = db::connection();
 
-    let query = web::block(move || db::list_oncall_syncs(&conn))
-        .await
-        .unwrap()
-        .unwrap();
+    let query = match web::block(move || db::list_oncall_syncs(&conn)).await {
+        Err(blocking_error) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", blocking_error),
+            }));
+        }
+        Ok(Err(db_error)) => {
+            return Ok(db_error.into());
+        }
+        Ok(Ok(res)) => res,
+    };
     let user_groups = join_all(
         query
             .iter()
@@ -393,13 +424,22 @@ async fn list_syncs() -> Result<impl Responder> {
 
 #[get("/list_user_mappings")]
 async fn list_user_mappings() -> Result<impl Responder> {
-    let user_mappings = web::block(|| {
+    let user_mappings = match web::block(|| {
         let conn = db::connection();
         db::list_user_mappings(&conn)
     })
     .await
-    .unwrap()
-    .unwrap();
+    {
+        Err(blocking_error) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", blocking_error),
+            }));
+        }
+        Ok(Err(db_error)) => {
+            return Ok(db_error.into());
+        }
+        Ok(Ok(res)) => res,
+    };
 
     let user_mappings = user_mappings
         .into_iter()
@@ -417,13 +457,22 @@ async fn get_slack_user_mapping(
     info: web::Query<GetSlackUserMappingRequest>,
 ) -> Result<impl Responder> {
     let slack_user_id = info.into_inner().slack_user_id;
-    let opsgenie_user_id = web::block(move || {
+    let opsgenie_user_id = match web::block(move || {
         let conn = db::connection();
         db::get_slack_user_mapping(&conn, &slack_user_id)
     })
     .await
-    .unwrap()
-    .unwrap()
+    {
+        Err(blocking_error) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", blocking_error),
+            }));
+        }
+        Ok(Err(db_error)) => {
+            return Ok(db_error.into());
+        }
+        Ok(Ok(res)) => res,
+    }
     .map(|um| um.opsgenie_id);
 
     Ok(HttpResponse::Ok().json(GetSlackUserMappingResponse { opsgenie_user_id }))

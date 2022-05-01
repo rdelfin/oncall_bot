@@ -1,9 +1,49 @@
 use crate::{
     models::{NewOncallSync, NewUserMapping, OncallSync, UserMapping},
     schema::{oncall_syncs, user_mapping},
+    ErrorResponse,
 };
-use diesel::{prelude::*, result::QueryResult, sqlite::SqliteConnection};
+use actix_web::HttpResponse;
+use diesel::{prelude::*, result::Error as DieselError, sqlite::SqliteConnection};
 use std::env;
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("error making a query")]
+    QueryError(#[from] DieselError),
+    #[error("oncall sync for oncall {oncall_id} and user group {user_group_id} already exists")]
+    OncallSyncAlreadyExists {
+        oncall_id: String,
+        user_group_id: String,
+    },
+    #[error("user mapping for opsgenie user ID {opsgenie_id} and slack user ID {slack_id} already exists")]
+    UserMappingAlreadyExists {
+        opsgenie_id: String,
+        slack_id: String,
+    },
+}
+
+impl From<Error> for HttpResponse {
+    fn from(error: Error) -> HttpResponse {
+        match error {
+            Error::QueryError(_) => HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{}", error),
+            }),
+            Error::OncallSyncAlreadyExists {
+                oncall_id: _,
+                user_group_id: _,
+            }
+            | Error::UserMappingAlreadyExists {
+                opsgenie_id: _,
+                slack_id: _,
+            } => HttpResponse::BadRequest().json(ErrorResponse {
+                error: format!("{}", error),
+            }),
+        }
+    }
+}
+
+pub type Result<T = (), E = Error> = std::result::Result<T, E>;
 
 no_arg_sql_function!(
     last_insert_rowid,
@@ -19,76 +59,116 @@ pub fn connection() -> SqliteConnection {
 
 pub fn add_sync<'a>(
     conn: &SqliteConnection,
-    oncall_id: &'a str,
-    user_group_id: &'a str,
-) -> QueryResult<OncallSync> {
-    let new_oncall_sync = NewOncallSync {
-        oncall_id,
-        user_group_id,
-    };
+    oncall_id_q: &'a str,
+    user_group_id_q: &'a str,
+) -> Result<OncallSync> {
+    conn.transaction(|| {
+        // If sync already exists, error out
+        {
+            use crate::schema::oncall_syncs::dsl::*;
+            if let Some(_) = oncall_syncs
+                .filter(oncall_id.eq(oncall_id_q))
+                .filter(user_group_id.eq(user_group_id_q))
+                .limit(1)
+                .load::<OncallSync>(conn)?
+                .first()
+            {
+                return Err(Error::OncallSyncAlreadyExists {
+                    oncall_id: oncall_id_q.into(),
+                    user_group_id: user_group_id_q.into(),
+                });
+            }
+        }
 
-    // Insert and get ID
-    diesel::insert_into(oncall_syncs::table)
-        .values(&new_oncall_sync)
-        .execute(conn)?;
-    let generated_id: i32 = diesel::select(last_insert_rowid).first(conn).unwrap();
+        let new_oncall_sync = NewOncallSync {
+            oncall_id: oncall_id_q,
+            user_group_id: user_group_id_q,
+        };
 
-    {
-        use crate::schema::oncall_syncs::dsl::*;
-        Ok(oncall_syncs
-            .filter(id.eq(generated_id))
-            .limit(1)
-            .load::<OncallSync>(conn)?
-            .first()
-            .expect("Item does not exist after insert")
-            .clone())
-    }
+        // Insert and get ID
+        diesel::insert_into(oncall_syncs::table)
+            .values(&new_oncall_sync)
+            .execute(conn)?;
+
+        let generated_id: i32 = diesel::select(last_insert_rowid).first(conn).unwrap();
+
+        {
+            use crate::schema::oncall_syncs::dsl::*;
+            Ok(oncall_syncs
+                .filter(id.eq(generated_id))
+                .limit(1)
+                .load::<OncallSync>(conn)?
+                .first()
+                .expect("Item does not exist after insert")
+                .clone())
+        }
+    })
 }
 
-pub fn get_syncs(conn: &SqliteConnection, oncall_id_q: &str) -> QueryResult<Vec<OncallSync>> {
+pub fn get_syncs(conn: &SqliteConnection, oncall_id_q: &str) -> Result<Vec<OncallSync>> {
     use crate::schema::oncall_syncs::dsl::*;
-    oncall_syncs
+    Ok(oncall_syncs
         .filter(oncall_id.eq(oncall_id_q))
-        .load::<OncallSync>(conn)
+        .load::<OncallSync>(conn)?)
 }
 
 pub fn add_user_mapping<'a>(
     conn: &SqliteConnection,
-    opsgenie_id: &'a str,
-    slack_id: &'a str,
-) -> QueryResult<UserMapping> {
-    let new_user_mapping = NewUserMapping {
-        opsgenie_id,
-        slack_id,
-    };
+    opsgenie_id_q: &'a str,
+    slack_id_q: &'a str,
+) -> Result<UserMapping> {
+    conn.transaction(|| {
+        // Ensure user mapping doesn't already exist
+        {
+            use crate::schema::user_mapping::dsl::*;
+            if let Some(_) = user_mapping
+                .filter(opsgenie_id.eq(opsgenie_id_q))
+                .filter(slack_id.eq(slack_id_q))
+                .limit(1)
+                .load::<UserMapping>(conn)?
+                .first()
+            {
+                return Err(Error::UserMappingAlreadyExists {
+                    opsgenie_id: opsgenie_id_q.into(),
+                    slack_id: slack_id_q.into(),
+                });
+            }
+        }
 
-    // Insert and get ID
-    diesel::insert_into(user_mapping::table)
-        .values(&new_user_mapping)
-        .execute(conn)?;
-    let generated_id: i32 = diesel::select(last_insert_rowid).first(conn).unwrap();
+        let new_user_mapping = NewUserMapping {
+            opsgenie_id: opsgenie_id_q,
+            slack_id: slack_id_q,
+        };
 
-    {
-        use crate::schema::user_mapping::dsl::*;
-        Ok(user_mapping
-            .filter(id.eq(generated_id))
-            .limit(1)
-            .load::<UserMapping>(conn)?
-            .first()
-            .expect("Item does not exist after insert")
-            .clone())
-    }
+        // If sync already exists, error out
+        // Insert and get ID
+        diesel::insert_into(user_mapping::table)
+            .values(&new_user_mapping)
+            .execute(conn)?;
+        let generated_id: i32 = diesel::select(last_insert_rowid).first(conn).unwrap();
+
+        {
+            use crate::schema::user_mapping::dsl::*;
+            Ok(user_mapping
+                .filter(id.eq(generated_id))
+                .limit(1)
+                .load::<UserMapping>(conn)?
+                .first()
+                .expect("Item does not exist after insert")
+                .clone())
+        }
+    })
 }
 
-pub fn list_user_mappings(conn: &SqliteConnection) -> QueryResult<Vec<UserMapping>> {
+pub fn list_user_mappings(conn: &SqliteConnection) -> Result<Vec<UserMapping>> {
     use crate::schema::user_mapping::dsl::*;
-    user_mapping.load::<UserMapping>(conn)
+    Ok(user_mapping.load::<UserMapping>(conn)?)
 }
 
 pub fn get_slack_user_mapping(
     conn: &SqliteConnection,
     slack_id_q: &str,
-) -> QueryResult<Option<UserMapping>> {
+) -> Result<Option<UserMapping>> {
     use crate::schema::user_mapping::dsl::*;
     Ok(user_mapping
         .filter(slack_id.eq(slack_id_q))
@@ -100,7 +180,7 @@ pub fn get_slack_user_mapping(
 pub fn get_opsgenie_user_mapping(
     conn: &SqliteConnection,
     opsgenie_id_q: &str,
-) -> QueryResult<Option<UserMapping>> {
+) -> Result<Option<UserMapping>> {
     use crate::schema::user_mapping::dsl::*;
     Ok(user_mapping
         .filter(opsgenie_id.eq(opsgenie_id_q))
@@ -109,7 +189,7 @@ pub fn get_opsgenie_user_mapping(
         .map(|um| um.clone()))
 }
 
-pub fn list_oncall_syncs(conn: &SqliteConnection) -> QueryResult<Vec<OncallSync>> {
+pub fn list_oncall_syncs(conn: &SqliteConnection) -> Result<Vec<OncallSync>> {
     use crate::schema::oncall_syncs::dsl::*;
-    oncall_syncs.load::<OncallSync>(conn)
+    Ok(oncall_syncs.load::<OncallSync>(conn)?)
 }
