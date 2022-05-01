@@ -26,6 +26,7 @@ export interface Oncall {
 }
 
 export interface OncallSync {
+  id: number;
   oncall_id: string;
   oncall_name: string;
   user_group_id: string;
@@ -88,6 +89,19 @@ export interface AddSyncResponse {
 
 export interface ListUserGroupsResponse {
   user_groups?: UserGroup[] | null;
+  error?: string | null;
+}
+
+export interface RemoveSyncResponse {
+  id?: number | null;
+  oncall_id?: string | null;
+  user_group_id?: string | null;
+  error?: string | null;
+}
+
+export interface RemoveUserMapResponse {
+  opsgenie_user_id?: string | null;
+  slack_user_id?: string | null;
   error?: string | null;
 }
 
@@ -157,4 +171,28 @@ export function AddSync(
 
 export function ListUserGroups(): Promise<ListUserGroupsResponse> {
   return fetch("/api/list_user_groups").then((res) => res.json());
+}
+
+export function RemoveUserMap(
+  user_mapping_id: number
+): Promise<RemoveUserMapResponse> {
+  return fetch("/api/remove_user_map", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_mapping_id,
+    }),
+  }).then((res) => res.json());
+}
+
+export function RemoveSync(
+  oncall_sync_id: number
+): Promise<RemoveSyncResponse> {
+  return fetch("/api/remove_sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      oncall_sync_id,
+    }),
+  }).then((res) => res.json());
 }
