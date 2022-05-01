@@ -4,7 +4,7 @@ extern crate diesel;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use dotenv::dotenv;
 use futures_util::future::join_all;
-use log::Level;
+use log::{warn, Level};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use sync::Syncer;
@@ -40,6 +40,11 @@ struct UserMapping {
 struct AddSyncRequest {
     oncall_id: String,
     user_group_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct RemoveSyncRequest {
+    oncall_sync_id: i32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -86,6 +91,11 @@ struct ListOpsgenieUsersResponse {
 struct AddUserMapRequest {
     slack_id: String,
     opsgenie_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct RemoveUserMapRequest {
+    user_mapping_id: i32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -246,6 +256,28 @@ async fn add_user_map(req: web::Json<AddUserMapRequest>) -> Result<impl Responde
     Ok(HttpResponse::Ok().json(add_res))
 }
 
+#[post("/remove_user_map")]
+async fn remove_user_map(req: web::Json<RemoveUserMapRequest>) -> Result<impl Responder> {
+    let conn = db::connection();
+    let user_mapping_id = req.user_mapping_id;
+
+    // Remove user mapping from DB first.
+    let removed_user_mapping =
+        match web::block(move || db::remove_user_mapping(&conn, user_mapping_id)).await {
+            Err(blocking_error) => {
+                return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    error: format!("{:?}", blocking_error),
+                }));
+            }
+            Ok(Err(db_error)) => {
+                return Ok(db_error.into());
+            }
+            Ok(Ok(res)) => res,
+        };
+
+    Ok(HttpResponse::Ok().json(removed_user_mapping))
+}
+
 #[post("/add_sync")]
 async fn add_sync(
     req: web::Json<AddSyncRequest>,
@@ -306,6 +338,44 @@ async fn add_sync(
         }
         Ok(HttpResponse::Ok().json(sync_res))
     }
+}
+
+#[post("/remove_sync")]
+async fn remove_sync(
+    req: web::Json<RemoveSyncRequest>,
+    data: web::Data<Arc<AppState>>,
+) -> Result<impl Responder> {
+    let conn = db::connection();
+    let oncall_sync_id = req.oncall_sync_id;
+
+    // First, remove the element from the DB
+    let deleted_sync = match web::block(move || db::remove_sync(&conn, oncall_sync_id)).await {
+        Err(blocking_error) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", blocking_error),
+            }));
+        }
+        Ok(Err(db_error)) => {
+            return Ok(db_error.into());
+        }
+        Ok(Ok(res)) => res,
+    };
+
+    // Delete syncer if present
+    {
+        let key = SyncerKey {
+            oncall_id: deleted_sync.oncall_id.clone(),
+            user_group_id: deleted_sync.user_group_id.clone(),
+        };
+        let mut syncers = data.syncers.lock().await;
+        if !syncers.contains_key(&key) {
+            warn!("Syncer key {:?} not found in cache after delete", key);
+        } else {
+            syncers.remove(&key);
+        }
+    }
+
+    return Ok(HttpResponse::Ok().json(deleted_sync));
 }
 
 #[get("/synced_with")]
@@ -495,12 +565,14 @@ async fn main() -> anyhow::Result<()> {
         App::new()
             .app_data(web::Data::new(app_state.clone()))
             .service(add_sync)
+            .service(remove_sync)
             .service(synced_with)
             .service(list_oncalls)
             .service(list_user_groups)
             .service(list_slack_users)
             .service(list_opsgenie_users)
             .service(add_user_map)
+            .service(remove_user_map)
             .service(list_syncs)
             .service(list_user_mappings)
             .service(get_slack_user_mapping)
