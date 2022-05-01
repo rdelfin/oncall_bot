@@ -9,15 +9,18 @@ import Grid from "@mui/material/Grid";
 import { useSnackbar } from "notistack";
 
 import { SlackUser, ListSlackUsers, ListUserMappings } from "./Api";
+import { userMappingState, usersLoadedState } from "./State";
 import UserCard from "./components/UserCard";
 import LoadCard from "./components/LoadCard";
+import { useRecoilState } from "recoil";
 
 export default function Users() {
   const [slackUsers, setSlackUsers] = useState<SlackUser[]>([]);
-  const [userMappings, setUserMappings] = useState<{
+
+  const [loaded, setLoaded] = useRecoilState<boolean>(usersLoadedState);
+  const [userMappings, setUserMappings] = useRecoilState<{
     [slack_name: string]: string;
-  }>({});
-  const [loaded, setLoaded] = useState<boolean>(false);
+  }>(userMappingState);
 
   const { enqueueSnackbar } = useSnackbar();
 

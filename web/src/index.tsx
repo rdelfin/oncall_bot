@@ -10,6 +10,7 @@ import App from "./App";
 import reportWebVitals from "./reportWebVitals";
 import CssBaseline from "@mui/material/CssBaseline";
 import { SnackbarProvider } from "notistack";
+import { RecoilRoot } from "recoil";
 
 ReactDOM.render(
   <BrowserRouter>
@@ -20,8 +21,10 @@ ReactDOM.render(
           horizontal: "center",
         }}
       >
-        <CssBaseline />
-        <App />
+        <RecoilRoot>
+          <CssBaseline />
+          <App />
+        </RecoilRoot>
       </SnackbarProvider>
     </React.StrictMode>
   </BrowserRouter>,

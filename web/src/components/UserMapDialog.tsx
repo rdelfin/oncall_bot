@@ -4,6 +4,8 @@
 
 import React, { useState } from "react";
 
+import { useRecoilState, SetterOrUpdater } from "recoil";
+
 import Autocomplete from "@mui/material/Autocomplete";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
@@ -15,7 +17,12 @@ import TextField from "@mui/material/TextField";
 import Fab from "@mui/material/Fab";
 import DeleteIcon from "@mui/icons-material/Delete";
 
-import { useSnackbar } from "notistack";
+import {
+  useSnackbar,
+  SnackbarKey,
+  SnackbarMessage,
+  OptionsObject as SnackbarOptionsObject,
+} from "notistack";
 
 import {
   GetSlackUserMapping,
@@ -24,7 +31,10 @@ import {
   ListOpsgenieUsers,
   AddUserMap,
   RemoveUserMap,
+  ListUserMappings,
+  ListSlackUsers,
 } from "../Api";
+import { userMappingState, usersLoadedState } from "../State";
 
 interface UserMapDialogProps {
   slack_user: SlackUser;
@@ -36,6 +46,11 @@ export default function UserMapDialog(props: UserMapDialogProps) {
   const [opsgenieUsers, setOpsgenieUsers] = useState<OpsgenieUser[]>([]);
   const [userMappingId, setUserMappingId] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const [loaded, setLoaded] = useRecoilState<boolean>(usersLoadedState);
+  const [userMappings, setUserMappings] = useRecoilState<{
+    [slack_name: string]: string;
+  }>(userMappingState);
 
   const { enqueueSnackbar } = useSnackbar();
 
@@ -104,7 +119,10 @@ export default function UserMapDialog(props: UserMapDialogProps) {
         )
         .finally(() => {
           setOpen(false);
-        });
+        })
+        .then(() =>
+          updateUserMappings(setLoaded, setUserMappings, enqueueSnackbar)
+        );
     }
   };
 
@@ -135,7 +153,10 @@ export default function UserMapDialog(props: UserMapDialogProps) {
         )
         .finally(() => {
           setOpen(false);
-        });
+        })
+        .then(() =>
+          updateUserMappings(setLoaded, setUserMappings, enqueueSnackbar)
+        );
     }
   };
 
@@ -198,4 +219,50 @@ export default function UserMapDialog(props: UserMapDialogProps) {
       </Dialog>
     </div>
   );
+}
+
+function updateUserMappings(
+  setLoaded: SetterOrUpdater<boolean>,
+  setUserMappings: SetterOrUpdater<{
+    [slack_name: string]: string;
+  }>,
+  enqueueSnackbar: (
+    message: SnackbarMessage,
+    options?: SnackbarOptionsObject
+  ) => SnackbarKey
+): Promise<void> {
+  return Promise.resolve()
+    .then(() => {
+      setLoaded(false);
+      return ListUserMappings();
+    })
+    .then(
+      (result) => {
+        if (
+          result.user_mappings !== undefined &&
+          result.user_mappings !== null
+        ) {
+          setUserMappings(
+            Object.assign(
+              {},
+              ...result.user_mappings.map((user_mapping) => ({
+                [user_mapping.slack_user_id]: user_mapping.opsgenie_user_id,
+              }))
+            )
+          );
+        } else {
+          enqueueSnackbar(`Error fetching slack users: ${result.error}`, {
+            variant: "error",
+          });
+        }
+      },
+      (error) => {
+        enqueueSnackbar(`Error fetching slack users: ${error}`, {
+          variant: "error",
+        });
+      }
+    )
+    .finally(() => {
+      setLoaded(true);
+    });
 }
