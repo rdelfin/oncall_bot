@@ -21,6 +21,10 @@ pub enum Error {
         opsgenie_id: String,
         slack_id: String,
     },
+    #[error("Oncall sync with ID {0} does not exist")]
+    OncallSyncDoesNotExist(i32),
+    #[error("user mapping with ID {0} does not exist")]
+    UserMappingDoesNotExist(i32),
 }
 
 impl From<Error> for HttpResponse {
@@ -36,7 +40,9 @@ impl From<Error> for HttpResponse {
             | Error::UserMappingAlreadyExists {
                 opsgenie_id: _,
                 slack_id: _,
-            } => HttpResponse::BadRequest().json(ErrorResponse {
+            }
+            | Error::UserMappingDoesNotExist(_)
+            | Error::OncallSyncDoesNotExist(_) => HttpResponse::BadRequest().json(ErrorResponse {
                 error: format!("{}", error),
             }),
         }
@@ -105,6 +111,22 @@ pub fn add_sync<'a>(
     })
 }
 
+pub fn remove_sync(conn: &SqliteConnection, id_q: i32) -> Result<OncallSync> {
+    use crate::schema::oncall_syncs::dsl::*;
+
+    let removed_sync = oncall_syncs
+        .filter(id.eq(id_q))
+        .limit(1)
+        .load::<OncallSync>(conn)?
+        .first()
+        .ok_or_else(|| Error::OncallSyncDoesNotExist(id_q))?
+        .clone();
+
+    diesel::delete(oncall_syncs.filter(id.eq(id_q))).execute(conn)?;
+
+    Ok(removed_sync)
+}
+
 pub fn get_syncs(conn: &SqliteConnection, oncall_id_q: &str) -> Result<Vec<OncallSync>> {
     use crate::schema::oncall_syncs::dsl::*;
     Ok(oncall_syncs
@@ -158,6 +180,21 @@ pub fn add_user_mapping<'a>(
                 .clone())
         }
     })
+}
+
+pub fn remove_user_mapping<'a>(conn: &SqliteConnection, id_q: i32) -> Result<UserMapping> {
+    use crate::schema::user_mapping::dsl::*;
+
+    let removed_user_mapping = user_mapping
+        .filter(id.eq(id_q))
+        .load::<UserMapping>(conn)?
+        .first()
+        .ok_or_else(|| Error::UserMappingDoesNotExist(id_q))?
+        .clone();
+
+    diesel::delete(user_mapping.filter(id.eq(id_q))).execute(conn)?;
+
+    Ok(removed_user_mapping)
 }
 
 pub fn list_user_mappings(conn: &SqliteConnection) -> Result<Vec<UserMapping>> {
