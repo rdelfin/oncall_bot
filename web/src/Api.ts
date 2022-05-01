@@ -16,6 +16,7 @@ export interface OpsgenieUser {
 }
 
 export interface UserMapping {
+  id: number;
   opsgenie_user_id: string;
   slack_user_id: string;
 }
@@ -61,7 +62,7 @@ export interface ListOncallsResponse {
 }
 
 export interface GetSlackUserMappingResponse {
-  opsgenie_user_id?: string | null;
+  user_mapping?: UserMapping | null;
 }
 
 export interface AddUserMapResponse {
