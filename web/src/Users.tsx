@@ -3,7 +3,11 @@
  */
 
 import React, { useState } from "react";
+
 import Grid from "@mui/material/Grid";
+
+import { useSnackbar } from "notistack";
+
 import { SlackUser, ListSlackUsers, ListUserMappings } from "./Api";
 import UserCard from "./components/UserCard";
 import LoadCard from "./components/LoadCard";
@@ -15,17 +19,23 @@ export default function Users() {
   }>({});
   const [loaded, setLoaded] = useState<boolean>(false);
 
+  const { enqueueSnackbar } = useSnackbar();
+
   React.useEffect(() => {
     let slack_users_promise = ListSlackUsers().then(
       (result) => {
         if (result.users !== undefined && result.users !== null) {
           return result.users;
         }
-        console.log("Error fetching slack users: " + result.error);
+        enqueueSnackbar(`Error fetching slack users: ${result.error}`, {
+          variant: "error",
+        });
         return [];
       },
       (error) => {
-        console.log("Error fetching slack users: " + error);
+        enqueueSnackbar(`Error fetching slack users: ${error}`, {
+          variant: "error",
+        });
         return [];
       }
     );
@@ -38,11 +48,15 @@ export default function Users() {
         ) {
           return result.user_mappings;
         }
-        console.log("Error fetching slack users: " + result.error);
+        enqueueSnackbar(`Error fetching slack users: ${result.error}`, {
+          variant: "error",
+        });
         return [];
       },
       (error) => {
-        console.log("Error fetching slack users: " + error);
+        enqueueSnackbar(`Error fetching slack users: ${error}`, {
+          variant: "error",
+        });
         return [];
       }
     );
@@ -61,7 +75,7 @@ export default function Users() {
         setLoaded(true);
       }
     );
-  }, []);
+  }, [enqueueSnackbar]);
 
   return (
     <div>

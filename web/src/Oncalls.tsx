@@ -3,7 +3,11 @@
  */
 
 import React, { useState } from "react";
+
 import Grid from "@mui/material/Grid";
+
+import { useSnackbar } from "notistack";
+
 import { Oncall, ListOncalls } from "./Api";
 import OncallCard from "./components/OncallCard";
 import LoadCard from "./components/LoadCard";
@@ -12,22 +16,28 @@ export default function Oncalls() {
   const [oncalls, setOncalls] = useState<Oncall[]>([]);
   const [loaded, setLoaded] = useState<boolean>(false);
 
+  const { enqueueSnackbar } = useSnackbar();
+
   React.useEffect(() => {
     ListOncalls().then(
       (result) => {
         if (result.oncalls) {
           setOncalls(result.oncalls);
         } else {
-          console.log("Error fetching oncalls: " + result.error);
+          enqueueSnackbar(`Error fetching oncalls: ${result.error}`, {
+            variant: "error",
+          });
         }
         setLoaded(true);
       },
       (error) => {
-        console.log("Error fetching oncalls: " + error);
+        enqueueSnackbar(`Error fetching oncalls: ${error}`, {
+          variant: "error",
+        });
         setLoaded(true);
       }
     );
-  }, []);
+  }, [enqueueSnackbar]);
 
   return (
     <div>
