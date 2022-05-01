@@ -19,6 +19,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Fab from "@mui/material/Fab";
 import AddIcon from "@mui/icons-material/Add";
+import RemoveIcon from "@mui/icons-material/Remove";
 
 import { useSnackbar } from "notistack";
 
@@ -29,6 +30,7 @@ import {
   OncallSync,
   SyncedWith,
   AddSync,
+  RemoveSync,
 } from "../Api";
 
 interface UserMapDialogProps {
@@ -128,6 +130,47 @@ export default function OncallDialog(props: UserMapDialogProps) {
     }
   };
 
+  const handleRemove = (
+    event: React.MouseEvent<HTMLElement>,
+    oncall_sync_id: number
+  ) => {
+    setSubmitting(true);
+    RemoveSync(oncall_sync_id)
+      .then(
+        (result) => {
+          if (result.error !== undefined && result.error !== null) {
+            enqueueSnackbar(`Error removing oncall sync: ${result.error}`, {
+              variant: "error",
+            });
+          }
+        },
+        (error) => {
+          enqueueSnackbar(`Error removing oncall sync: ${error}`, {
+            variant: "error",
+          });
+        }
+      )
+      .then((result) => SyncedWith(props.oncall.id))
+      .then(
+        (result) => {
+          if (result.syncs !== undefined && result.syncs !== null) {
+            setCurrentSyncs(result.syncs);
+          } else {
+            enqueueSnackbar(`Error fetching user groups: ${result.error}`, {
+              variant: "error",
+            });
+          }
+          setSubmitting(false);
+        },
+        (error) => {
+          enqueueSnackbar(`Error fetching user groups: ${error}`, {
+            variant: "error",
+          });
+          setSubmitting(false);
+        }
+      );
+  };
+
   const userGroupOptions = userGroups.map((userGroup) => {
     return { label: userGroup.name, key: userGroup.id };
   });
@@ -145,13 +188,25 @@ export default function OncallDialog(props: UserMapDialogProps) {
               <TableHead>
                 <TableCell>User Group</TableCell>
                 <TableCell>Handle</TableCell>
-                <TableCell>Add?</TableCell>
+                <TableCell>Add/Remove</TableCell>
               </TableHead>
               {currentSyncs.map((sync) => (
                 <TableRow>
                   <TableCell>{sync.user_group_name}</TableCell>
                   <TableCell>{sync.user_group_handle}</TableCell>
-                  <TableCell></TableCell>
+                  <TableCell>
+                    <Fab
+                      color="primary"
+                      aria-label="remove"
+                      size="small"
+                      disabled={submitting}
+                      onClick={(e) => {
+                        handleRemove(e, sync.id);
+                      }}
+                    >
+                      <RemoveIcon />
+                    </Fab>
+                  </TableCell>
                 </TableRow>
               ))}
               <TableRow>
