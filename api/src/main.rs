@@ -23,6 +23,7 @@ mod sync;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct OncallSync {
+    id: i32,
     oncall_id: String,
     oncall_name: String,
     user_group_id: String,
@@ -415,7 +416,9 @@ async fn synced_with(info: web::Query<SyncedWithRequest>) -> Result<impl Respond
 
     let syncs = user_groups
         .into_iter()
-        .map(|user_group| OncallSync {
+        .zip(query.into_iter().map(|sync| sync.id))
+        .map(|(user_group, id)| OncallSync {
+            id,
             oncall_id: oncall_id.clone(),
             oncall_name: oncall_name.clone(),
             user_group_id: user_group.id,
@@ -481,6 +484,7 @@ async fn list_syncs() -> Result<impl Responder> {
         .zip(user_groups.into_iter())
         .zip(oncalls.into_iter())
         .map(|((sync, user_group), oncall_name)| OncallSync {
+            id: sync.id,
             oncall_id: sync.oncall_id,
             oncall_name,
             user_group_id: sync.user_group_id,
