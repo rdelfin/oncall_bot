@@ -15,7 +15,7 @@ pub struct NewOncallSync<'a> {
     pub user_group_id: &'a str,
 }
 
-#[derive(Queryable, Clone, Serialize, Deserialize)]
+#[derive(Queryable, Clone, Serialize, Deserialize, Debug)]
 pub struct UserMapping {
     pub id: i32,
     pub opsgenie_id: String,

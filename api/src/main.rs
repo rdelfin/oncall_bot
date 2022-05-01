@@ -33,6 +33,7 @@ struct OncallSync {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct UserMapping {
+    id: i32,
     opsgenie_user_id: String,
     slack_user_id: String,
 }
@@ -106,7 +107,7 @@ struct ListUserMappingsResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct GetSlackUserMappingResponse {
-    opsgenie_user_id: Option<String>,
+    user_mapping: Option<UserMapping>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -518,6 +519,7 @@ async fn list_user_mappings() -> Result<impl Responder> {
     let user_mappings = user_mappings
         .into_iter()
         .map(|user_mapping| UserMapping {
+            id: user_mapping.id,
             opsgenie_user_id: user_mapping.opsgenie_id,
             slack_user_id: user_mapping.slack_id,
         })
@@ -531,7 +533,7 @@ async fn get_slack_user_mapping(
     info: web::Query<GetSlackUserMappingRequest>,
 ) -> Result<impl Responder> {
     let slack_user_id = info.into_inner().slack_user_id;
-    let opsgenie_user_id = match web::block(move || {
+    let user_mapping = match web::block(move || {
         let conn = db::connection();
         db::get_slack_user_mapping(&conn, &slack_user_id)
     })
@@ -547,9 +549,13 @@ async fn get_slack_user_mapping(
         }
         Ok(Ok(res)) => res,
     }
-    .map(|um| um.opsgenie_id);
+    .map(|um| UserMapping {
+        id: um.id,
+        opsgenie_user_id: um.opsgenie_id,
+        slack_user_id: um.slack_id,
+    });
 
-    Ok(HttpResponse::Ok().json(GetSlackUserMappingResponse { opsgenie_user_id }))
+    Ok(HttpResponse::Ok().json(GetSlackUserMappingResponse { user_mapping }))
 }
 
 async fn not_found() -> Result<impl Responder> {
