@@ -1,4 +1,4 @@
-use crate::schema::{oncall_syncs, user_mapping};
+use crate::schema::{notified_slack_channel, oncall_syncs, user_mapping};
 use serde::{Deserialize, Serialize};
 
 #[derive(Queryable, Clone, Serialize, Deserialize)]
@@ -27,4 +27,18 @@ pub struct UserMapping {
 pub struct NewUserMapping<'a> {
     pub opsgenie_id: &'a str,
     pub slack_id: &'a str,
+}
+
+#[derive(Queryable, Clone, Serialize, Deserialize, Debug)]
+pub struct NotifiedSlackChannel {
+    pub id: i32,
+    pub oncall_id: String,
+    pub slack_channel_id: String,
+}
+
+#[derive(Insertable, Serialize, Deserialize)]
+#[table_name = "notified_slack_channel"]
+pub struct NewNotifiedSlackChannel<'a> {
+    pub oncall_id: &'a str,
+    pub slack_channel_id: &'a str,
 }
