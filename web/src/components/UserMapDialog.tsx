@@ -4,7 +4,7 @@
 
 import React, { useState } from "react";
 
-import { useRecoilState, SetterOrUpdater } from "recoil";
+import { useSetRecoilState, SetterOrUpdater } from "recoil";
 
 import Autocomplete from "@mui/material/Autocomplete";
 import Button from "@mui/material/Button";
@@ -32,7 +32,6 @@ import {
   AddUserMap,
   RemoveUserMap,
   ListUserMappings,
-  ListSlackUsers,
 } from "../Api";
 import { userMappingState, usersLoadedState } from "../State";
 
@@ -47,8 +46,8 @@ export default function UserMapDialog(props: UserMapDialogProps) {
   const [userMappingId, setUserMappingId] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const [loaded, setLoaded] = useRecoilState<boolean>(usersLoadedState);
-  const [userMappings, setUserMappings] = useRecoilState<{
+  const setLoaded = useSetRecoilState<boolean>(usersLoadedState);
+  const setUserMappings = useSetRecoilState<{
     [slack_name: string]: string;
   }>(userMappingState);
 

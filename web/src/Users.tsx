@@ -78,7 +78,7 @@ export default function Users() {
         setLoaded(true);
       }
     );
-  }, [enqueueSnackbar]);
+  }, [enqueueSnackbar, setLoaded, setUserMappings]);
 
   return (
     <div>
