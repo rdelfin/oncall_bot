@@ -14,6 +14,6 @@ CREATE TABLE user_mapping (
 CREATE TABLE notified_slack_channel (
   id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
   oncall_id VARCHAR NOT NULL,
-  slack_channel_id VARCHAR NOT NULL,
+  slack_channel_id VARCHAR UNIQUE NOT NULL,
   UNIQUE(oncall_id, slack_channel_id)
 );
