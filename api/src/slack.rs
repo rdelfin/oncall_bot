@@ -29,10 +29,36 @@ pub struct User {
     is_bot: bool,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ChannelTopic {
+    value: String,
+    creator: String,
+    last_set: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Channel {
+    id: String,
+    name: String,
+    topic: ChannelTopic,
+}
+
 #[derive(Serialize, Debug, Clone)]
 pub struct UserGroupUpdateRequest<'a> {
     usergroup: &'a str,
     users: &'a [String],
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ConversationSetTopicRequest<'a> {
+    channel: &'a str,
+    topic: &'a str,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PostMessageRequest<'a> {
+    channel: &'a str,
+    text: &'a str,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -49,6 +75,23 @@ pub struct GetUserResponse {
 pub struct UserGroupsListResponse {
     ok: bool,
     usergroups: Vec<UserGroup>,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ConversationListResponseMetadata {
+    next_cursor: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ConversationsListResponse {
+    ok: bool,
+    channels: Vec<Channel>,
+    response_metadata: Option<ConversationListResponseMetadata>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ConversationSetTopicResponse {
+    ok: bool,
+    channel: Channel,
 }
 
 pub async fn list_user_groups() -> Result<Vec<UserGroup>, Error> {
@@ -135,6 +178,99 @@ pub async fn get_user(id: &str) -> Result<User, Error> {
 
     match users_response.status() {
         reqwest::StatusCode::OK => Ok(users_response.json::<GetUserResponse>().await?.user),
+        error_code => Err(Error::HttpErrorCode(error_code)),
+    }
+}
+
+pub async fn list_channels() -> Result<Vec<Channel>, Error> {
+    let slack_oauth_token = slack_oauth_token();
+    let client = reqwest::Client::new();
+    let mut channel_list = vec![];
+    let mut cursor: Option<String> = None;
+
+    loop {
+        let params: Vec<_> = match cursor {
+            Some(ref cursor) => vec![("cursor", &cursor[..]), ("limit", "1000")],
+            None => vec![("types", "public_channel"), ("limit", "1000")],
+        };
+        let conversations_response = client
+            .get(Url::parse_with_params(
+                "https://slack.com/api/conversations.list",
+                &params,
+            )?)
+            .header(AUTHORIZATION, format!("Bearer {}", slack_oauth_token))
+            .send()
+            .await
+            .unwrap();
+
+        let mut conversations = match conversations_response.status() {
+            reqwest::StatusCode::OK => {
+                conversations_response
+                    .json::<ConversationsListResponse>()
+                    .await?
+            }
+            error_code => return Err(Error::HttpErrorCode(error_code)),
+        };
+
+        channel_list.append(&mut conversations.channels);
+
+        match conversations
+            .response_metadata
+            .map(|metadata| metadata.next_cursor)
+        {
+            Some(Some(next_cursor)) => {
+                cursor = Some(next_cursor);
+            }
+            _ => {
+                break;
+            }
+        }
+    }
+
+    Ok(channel_list)
+}
+
+pub async fn set_channel_topic(channel_id: &str, topic: &str) -> Result<Channel, Error> {
+    let slack_oauth_token = slack_oauth_token();
+    let client = reqwest::Client::new();
+
+    let set_topic_response = client
+        .post("https://slack.com/api/conversations.setTopic")
+        .header(AUTHORIZATION, format!("Bearer {}", slack_oauth_token))
+        .json(&ConversationSetTopicRequest {
+            channel: channel_id,
+            topic,
+        })
+        .send()
+        .await
+        .unwrap();
+
+    match set_topic_response.status() {
+        reqwest::StatusCode::OK => Ok(set_topic_response
+            .json::<ConversationSetTopicResponse>()
+            .await?
+            .channel),
+        error_code => Err(Error::HttpErrorCode(error_code)),
+    }
+}
+
+pub async fn post_message(channel_id: &str, message: &str) -> Result<(), Error> {
+    let slack_oauth_token = slack_oauth_token();
+    let client = reqwest::Client::new();
+
+    let set_topic_response = client
+        .post("https://slack.com/api/chat.postMessage")
+        .header(AUTHORIZATION, format!("Bearer {}", slack_oauth_token))
+        .json(&PostMessageRequest {
+            channel: channel_id,
+            text: message,
+        })
+        .send()
+        .await
+        .unwrap();
+
+    match set_topic_response.status() {
+        reqwest::StatusCode::OK => Ok(()),
         error_code => Err(Error::HttpErrorCode(error_code)),
     }
 }
