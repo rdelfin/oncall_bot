@@ -85,6 +85,11 @@ struct ListSlackUsersResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct ListSlackChannelsResponse {
+    channels: Vec<slack::Channel>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct ListOpsgenieUsersResponse {
     users: Vec<opsgenie::User>,
 }
@@ -126,6 +131,7 @@ struct AppState {
     // Map of oncall ID to syncers
     syncers: Mutex<HashMap<SyncerKey, Syncer>>,
     slack_user_cache: RwLock<Option<(Instant, Vec<slack::User>)>>,
+    slack_channel_cache: RwLock<Option<(Instant, Vec<slack::Channel>)>>,
 }
 
 const SLACK_REFRESH_PERIOD_S: u64 = 60;
@@ -150,6 +156,7 @@ impl AppState {
         Ok(AppState {
             syncers: Mutex::new(syncers),
             slack_user_cache: RwLock::new(None),
+            slack_channel_cache: RwLock::new(None),
         })
     }
 }
@@ -174,8 +181,7 @@ async fn list_slack_users(data: web::Data<Arc<AppState>>) -> Result<impl Respond
                 }));
             }
         };
-        let mut lock_guard = data.slack_user_cache.write().await;
-        *lock_guard = Some((Instant::now(), users.clone()));
+        *data.slack_user_cache.write().await = Some((Instant::now(), users.clone()));
         users
     } else {
         data.slack_user_cache
@@ -219,6 +225,40 @@ async fn list_oncalls() -> Result<impl Responder> {
     Ok(HttpResponse::Ok().json(ListOncallsResponse {
         oncalls: opsgenie::list_oncalls().await,
     }))
+}
+
+#[get("/list_slack_channels")]
+async fn list_slack_channels(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
+    let last_update = {
+        let lock_guard = data.slack_channel_cache.read().await;
+        lock_guard.as_ref().map(|(ts, _)| ts.clone())
+    };
+    let should_update = match last_update {
+        None => true,
+        Some(ts) => ts.elapsed() > Duration::from_secs(SLACK_REFRESH_PERIOD_S),
+    };
+
+    let channels = if should_update {
+        let channels = match slack::list_channels().await {
+            Ok(channels) => channels,
+            Err(e) => {
+                return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                    error: format!("{:?}", e),
+                }));
+            }
+        };
+        *data.slack_channel_cache.write().await = Some((Instant::now(), channels.clone()));
+        channels
+    } else {
+        data.slack_channel_cache
+            .read()
+            .await
+            .as_ref()
+            .map(|(_, data)| data.clone())
+            .unwrap_or(vec![])
+    };
+
+    Ok(HttpResponse::Ok().json(ListSlackChannelsResponse { channels }))
 }
 
 #[post("/add_user_map")]
@@ -580,6 +620,7 @@ async fn main() -> anyhow::Result<()> {
             .service(list_oncalls)
             .service(list_user_groups)
             .service(list_slack_users)
+            .service(list_slack_channels)
             .service(list_opsgenie_users)
             .service(add_user_map)
             .service(remove_user_map)
