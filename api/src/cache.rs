@@ -1,42 +1,71 @@
-use std::{collections::HashMap, hash::Hash, time::Duration};
+use futures::{future::BoxFuture, Future};
+use std::{collections::HashMap, hash::Hash, marker::PhantomData, time::Duration};
 use tokio::{sync::RwLock, time::Instant};
 
-#[derive(Debug)]
-pub struct Cache<K: Clone + Hash + PartialEq + Eq, V: Clone> {
+pub trait CacheAsyncFn<K: Clone + Hash + PartialEq + Eq, V: Clone, Error: std::error::Error>:
+    Send + Sync
+{
+    fn call(&self) -> BoxFuture<'static, Result<HashMap<K, V>, Error>>;
+}
+
+impl<
+        K: Clone + Hash + PartialEq + Eq,
+        V: Clone,
+        Error: std::error::Error,
+        T: Fn() -> F + Send + Sync,
+        F: Future<Output = Result<HashMap<K, V>, Error>> + 'static + Send,
+    > CacheAsyncFn<K, V, Error> for T
+{
+    fn call(&self) -> BoxFuture<'static, Result<HashMap<K, V>, Error>> {
+        Box::pin(self())
+    }
+}
+
+pub struct Cache<K: Clone + Hash + PartialEq + Eq, V: Clone, Error: std::error::Error> {
     data: RwLock<HashMap<K, V>>,
     last_update: RwLock<Option<Instant>>,
     update_interval: Duration,
+    update_fn: Box<dyn CacheAsyncFn<K, V, Error>>,
+    _phantom: PhantomData<Error>,
 }
 
-impl<K: Clone + Hash + PartialEq + Eq, V: Clone> Cache<K, V> {
-    pub fn new(update_interval: Duration) -> Cache<K, V> {
+impl<K: Clone + Hash + PartialEq + Eq, V: Clone, Error: std::error::Error> Cache<K, V, Error> {
+    pub fn new<
+        T: Fn() -> F + 'static + Send + Sync,
+        F: Future<Output = Result<HashMap<K, V>, Error>> + 'static + Send,
+    >(
+        update_interval: Duration,
+        update_fn: T,
+    ) -> Cache<K, V, Error> {
         Cache {
             data: RwLock::new(HashMap::new()),
             last_update: RwLock::new(None),
             update_interval,
+            update_fn: Box::new(update_fn),
+            _phantom: PhantomData,
         }
     }
 
-    pub async fn get(&self) -> Option<HashMap<K, V>> {
+    pub async fn get(&self) -> Result<HashMap<K, V>, Error> {
         let now = Instant::now();
-        match *self.last_update.read().await {
-            None => None,
-            Some(last_update) => {
-                if (now - last_update) > self.update_interval {
-                    None
-                } else {
-                    Some(self.data.read().await.clone())
-                }
-            }
+        let last_update = {
+            let lg = self.last_update.read().await;
+            (*lg).clone()
+        };
+
+        let needs_update = match last_update {
+            None => true,
+            Some(last_update) => (now - last_update) > self.update_interval,
+        };
+
+        if needs_update {
+            let new_values = self.update_fn.call().await?;
+            let mut data_lg = self.data.write().await;
+            *data_lg = new_values.clone();
+            Ok(new_values)
+        } else {
+            Ok(self.data.read().await.clone())
         }
-    }
-
-    pub async fn update_all(&self, new_data: &HashMap<K, V>) {
-        let mut last_update_lg = self.last_update.write().await;
-        let mut data_lg = self.data.write().await;
-
-        *last_update_lg = Some(Instant::now());
-        *data_lg = new_data.clone();
     }
 
     pub async fn update(&self, k: K, v: V) {

@@ -124,13 +124,40 @@ struct SyncerKey {
     user_group_id: String,
 }
 
-#[derive(Debug)]
+//
+// Cache Functions
+//
+
+async fn slack_users_update() -> slack::Result<HashMap<String, slack::User>> {
+    Ok(slack::list_users()
+        .await?
+        .into_iter()
+        .map(|user| (user.id.clone(), user))
+        .collect())
+}
+
+async fn oncall_update() -> opsgenie::Result<HashMap<String, opsgenie::Oncall>> {
+    Ok(opsgenie::list_oncalls()
+        .await
+        .into_iter()
+        .map(|oncall| (oncall.id.clone(), oncall))
+        .collect())
+}
+
+async fn slack_channel_update() -> slack::Result<HashMap<String, slack::Channel>> {
+    Ok(slack::list_channels()
+        .await?
+        .into_iter()
+        .map(|channel| (channel.id.clone(), channel))
+        .collect())
+}
+
 struct AppState {
     // Map of oncall ID to syncers
     syncers: Mutex<HashMap<SyncerKey, Syncer>>,
-    slack_user_cache: Cache<String, slack::User>, // Key is the user ID
-    oncall_cache: Cache<String, opsgenie::Oncall>, // Key is the oncall ID
-    slack_channel_cache: Cache<String, slack::Channel>, // Key is the slack channel ID
+    slack_user_cache: Cache<String, slack::User, slack::Error>, // Key is the user ID
+    oncall_cache: Cache<String, opsgenie::Oncall, opsgenie::Error>, // Key is the oncall ID
+    slack_channel_cache: Cache<String, slack::Channel, slack::Error>, // Key is the slack channel ID
 }
 
 impl AppState {
@@ -152,9 +179,9 @@ impl AppState {
 
         Ok(AppState {
             syncers: Mutex::new(syncers),
-            slack_user_cache: Cache::new(Duration::from_secs(60)),
-            oncall_cache: Cache::new(Duration::from_secs(60)),
-            slack_channel_cache: Cache::new(Duration::from_secs(60)),
+            slack_user_cache: Cache::new(Duration::from_secs(60), slack_users_update),
+            oncall_cache: Cache::new(Duration::from_secs(60), oncall_update),
+            slack_channel_cache: Cache::new(Duration::from_secs(60), slack_channel_update),
         })
     }
 }
@@ -162,29 +189,16 @@ impl AppState {
 #[get("/list_slack_users")]
 async fn list_slack_users(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
     let users = match data.slack_user_cache.get().await {
-        Some(users) => users.into_values().collect(),
-        None => {
-            let users = match slack::list_users().await {
-                Ok(users) => users,
-                Err(e) => {
-                    return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                        error: format!("{:?}", e),
-                    }));
-                }
-            };
-
-            data.slack_user_cache
-                .update_all(
-                    &users
-                        .iter()
-                        .map(|user| (user.id.clone(), user.clone()))
-                        .collect(),
-                )
-                .await;
-            users
+        Ok(users) => users,
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", e),
+            }));
         }
     };
-    Ok(HttpResponse::Ok().json(ListSlackUsersResponse { users }))
+    Ok(HttpResponse::Ok().json(ListSlackUsersResponse {
+        users: users.into_values().collect(),
+    }))
 }
 
 #[get("/list_opsgenie_users")]
@@ -216,51 +230,31 @@ async fn list_user_groups() -> Result<impl Responder> {
 #[get("/list_oncalls")]
 async fn list_oncalls(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
     let oncalls = match data.oncall_cache.get().await {
-        Some(oncalls) => oncalls.into_values().collect(),
-        None => {
-            let oncalls = opsgenie::list_oncalls().await;
-
-            data.oncall_cache
-                .update_all(
-                    &oncalls
-                        .iter()
-                        .map(|oncall| (oncall.id.clone(), oncall.clone()))
-                        .collect(),
-                )
-                .await;
-            oncalls
+        Ok(oncalls) => oncalls,
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", e),
+            }));
         }
     };
-    Ok(HttpResponse::Ok().json(ListOncallsResponse { oncalls }))
+    Ok(HttpResponse::Ok().json(ListOncallsResponse {
+        oncalls: oncalls.into_values().collect(),
+    }))
 }
 
 #[get("/list_slack_channels")]
 async fn list_slack_channels(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
     let channels = match data.slack_channel_cache.get().await {
-        Some(channels) => channels.into_values().collect(),
-        None => {
-            let channels = match slack::list_channels().await {
-                Ok(channels) => channels,
-                Err(e) => {
-                    return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                        error: format!("{:?}", e),
-                    }));
-                }
-            };
-
-            data.slack_channel_cache
-                .update_all(
-                    &channels
-                        .iter()
-                        .map(|channel| (channel.id.clone(), channel.clone()))
-                        .collect(),
-                )
-                .await;
-            channels
+        Ok(channels) => channels,
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", e),
+            }));
         }
     };
-
-    Ok(HttpResponse::Ok().json(ListSlackChannelsResponse { channels }))
+    Ok(HttpResponse::Ok().json(ListSlackChannelsResponse {
+        channels: channels.into_values().collect(),
+    }))
 }
 
 #[post("/add_user_map")]
