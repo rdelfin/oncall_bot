@@ -14,6 +14,7 @@ use tokio::{
     time::Instant,
 };
 
+mod cache;
 mod db;
 mod models;
 mod opsgenie;
