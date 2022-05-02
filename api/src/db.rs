@@ -1,6 +1,9 @@
 use crate::{
-    models::{NewOncallSync, NewUserMapping, OncallSync, UserMapping},
-    schema::{oncall_syncs, user_mapping},
+    models::{
+        NewNotifiedSlackChannel, NewOncallSync, NewUserMapping, NotifiedSlackChannel, OncallSync,
+        UserMapping,
+    },
+    schema::{notified_slack_channel, oncall_syncs, user_mapping},
     ErrorResponse,
 };
 use actix_web::HttpResponse;
@@ -21,10 +24,14 @@ pub enum Error {
         opsgenie_id: String,
         slack_id: String,
     },
+    #[error("channel with ID {0} is already being notified")]
+    ChannelAlreadyNotified(String),
     #[error("Oncall sync with ID {0} does not exist")]
     OncallSyncDoesNotExist(i32),
     #[error("user mapping with ID {0} does not exist")]
     UserMappingDoesNotExist(i32),
+    #[error("channel notification ID {0} does not exist")]
+    ChannelNotificationDoesNotExist(i32),
 }
 
 impl From<Error> for HttpResponse {
@@ -42,9 +49,13 @@ impl From<Error> for HttpResponse {
                 slack_id: _,
             }
             | Error::UserMappingDoesNotExist(_)
-            | Error::OncallSyncDoesNotExist(_) => HttpResponse::BadRequest().json(ErrorResponse {
-                error: format!("{}", error),
-            }),
+            | Error::OncallSyncDoesNotExist(_)
+            | Error::ChannelAlreadyNotified(_)
+            | Error::ChannelNotificationDoesNotExist(_) => {
+                HttpResponse::BadRequest().json(ErrorResponse {
+                    error: format!("{}", error),
+                })
+            }
         }
     }
 }
@@ -150,6 +161,7 @@ pub fn add_user_mapping<'a>(
                 .load::<UserMapping>(conn)?
                 .first()
             {
+                // If sync already exists, error out
                 return Err(Error::UserMappingAlreadyExists {
                     opsgenie_id: opsgenie_id_q.into(),
                     slack_id: slack_id_q.into(),
@@ -162,7 +174,6 @@ pub fn add_user_mapping<'a>(
             slack_id: slack_id_q,
         };
 
-        // If sync already exists, error out
         // Insert and get ID
         diesel::insert_into(user_mapping::table)
             .values(&new_user_mapping)
@@ -229,4 +240,102 @@ pub fn get_opsgenie_user_mapping(
 pub fn list_oncall_syncs(conn: &SqliteConnection) -> Result<Vec<OncallSync>> {
     use crate::schema::oncall_syncs::dsl::*;
     Ok(oncall_syncs.load::<OncallSync>(conn)?)
+}
+
+pub fn list_notified_slack_channels(conn: &SqliteConnection) -> Result<Vec<NotifiedSlackChannel>> {
+    use crate::schema::notified_slack_channel::dsl::*;
+    Ok(notified_slack_channel.load::<NotifiedSlackChannel>(conn)?)
+}
+
+pub fn get_channels_notified_for_oncall(
+    conn: &SqliteConnection,
+    oncall_id_q: &str,
+) -> Result<Vec<NotifiedSlackChannel>> {
+    use crate::schema::notified_slack_channel::dsl::*;
+    Ok(notified_slack_channel
+        .filter(oncall_id.eq(oncall_id_q))
+        .load::<NotifiedSlackChannel>(conn)?)
+}
+
+pub fn get_oncall_notified_in_channel(
+    conn: &SqliteConnection,
+    channel_id: &str,
+) -> Result<Option<NotifiedSlackChannel>> {
+    use crate::schema::notified_slack_channel::dsl::*;
+    Ok(notified_slack_channel
+        .limit(1)
+        .filter(slack_channel_id.eq(channel_id))
+        .load::<NotifiedSlackChannel>(conn)?
+        .first()
+        .cloned())
+}
+
+pub fn add_channel_oncall_notification(
+    conn: &SqliteConnection,
+    slack_channel_id_q: &str,
+    oncall_id_q: &str,
+) -> Result<NotifiedSlackChannel> {
+    conn.transaction(|| {
+        // First, confirm the channel's not already been mapped
+        {
+            use crate::schema::notified_slack_channel::dsl::*;
+            if let Some(_) = notified_slack_channel
+                .limit(1)
+                .filter(slack_channel_id.eq(slack_channel_id_q))
+                .load::<NotifiedSlackChannel>(conn)?
+                .first()
+            {
+                return Err(Error::ChannelAlreadyNotified(slack_channel_id_q.into()));
+            }
+        }
+
+        let new_notified_slack_channel = NewNotifiedSlackChannel {
+            slack_channel_id: slack_channel_id_q,
+            oncall_id: oncall_id_q,
+        };
+
+        // Insert and get ID
+        diesel::insert_into(notified_slack_channel::table)
+            .values(&new_notified_slack_channel)
+            .execute(conn)?;
+
+        let generated_id: i32 = diesel::select(last_insert_rowid).first(conn).unwrap();
+
+        {
+            use crate::schema::notified_slack_channel::dsl::*;
+            Ok(notified_slack_channel
+                .filter(id.eq(generated_id))
+                .limit(1)
+                .load::<NotifiedSlackChannel>(conn)?
+                .first()
+                .expect("Item does not exist after insert")
+                .clone())
+        }
+    })
+}
+
+pub fn remove_channel_oncall_notification(
+    conn: &SqliteConnection,
+    id_q: i32,
+) -> Result<NotifiedSlackChannel> {
+    conn.transaction(|| {
+        // First, confirm the mapping exists
+        use crate::schema::notified_slack_channel::dsl::*;
+        let deleted_notification = match notified_slack_channel
+            .limit(1)
+            .filter(id.eq(id_q))
+            .load::<NotifiedSlackChannel>(conn)?
+            .first()
+            .cloned()
+        {
+            Some(notification) => notification,
+            None => {
+                return Err(Error::ChannelNotificationDoesNotExist(id_q));
+            }
+        };
+
+        diesel::delete(notified_slack_channel.filter(id.eq(id_q))).execute(conn)?;
+
+        Ok(deleted_notification)
+    })
 }
