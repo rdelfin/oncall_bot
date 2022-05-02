@@ -23,24 +23,24 @@ pub struct UserGroup {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User {
-    id: String,
-    name: String,
-    real_name: Option<String>,
-    is_bot: bool,
+    pub id: String,
+    pub name: String,
+    pub real_name: Option<String>,
+    pub is_bot: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ChannelTopic {
-    value: String,
-    creator: String,
-    last_set: u64,
+    pub value: String,
+    pub creator: String,
+    pub last_set: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Channel {
-    id: String,
-    name: String,
-    topic: ChannelTopic,
+    pub id: String,
+    pub name: String,
+    pub topic: ChannelTopic,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -63,35 +63,35 @@ pub struct PostMessageRequest<'a> {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ListUsersResponse {
-    members: Vec<User>,
+    pub members: Vec<User>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetUserResponse {
-    user: User,
+    pub user: User,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserGroupsListResponse {
-    ok: bool,
-    usergroups: Vec<UserGroup>,
+    pub ok: bool,
+    pub usergroups: Vec<UserGroup>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ConversationListResponseMetadata {
-    next_cursor: Option<String>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ConversationsListResponse {
-    ok: bool,
-    channels: Vec<Channel>,
-    response_metadata: Option<ConversationListResponseMetadata>,
+    pub ok: bool,
+    pub channels: Vec<Channel>,
+    pub response_metadata: Option<ConversationListResponseMetadata>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ConversationSetTopicResponse {
-    ok: bool,
-    channel: Channel,
+    pub ok: bool,
+    pub channel: Channel,
 }
 
 pub async fn list_user_groups() -> Result<Vec<UserGroup>, Error> {

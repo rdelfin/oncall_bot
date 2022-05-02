@@ -10,62 +10,62 @@ pub enum Error {
     HttpErrorCode(StatusCode),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Oncall {
-    id: String,
-    name: String,
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Schedule {
-    id: String,
-    name: String,
+    pub id: String,
+    pub name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct User {
-    id: String,
-    username: String,
+    pub id: String,
+    pub username: String,
     #[serde(rename = "fullName")]
-    full_name: String,
+    pub full_name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OncallParticipant {
-    id: String,
+    pub id: String,
     #[serde(rename = "type")]
-    typ: String,
+    pub typ: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CurrentOncall {
     #[serde(rename = "onCallParticipants")]
-    on_call_participants: Vec<OncallParticipant>,
+    pub on_call_participants: Vec<OncallParticipant>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct ScheduleListResponse {
-    data: Vec<Schedule>,
+    pub data: Vec<Schedule>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct GetScheduleResponse {
-    data: Schedule,
+    pub data: Schedule,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct ListUsersResponse {
-    data: Vec<User>,
+    pub data: Vec<User>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct GetUserResponse {
-    data: User,
+    pub data: User,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct CurrentOncallResponse {
-    data: CurrentOncall,
+    pub data: CurrentOncall,
 }
 
 pub async fn list_oncalls() -> Vec<Oncall> {
