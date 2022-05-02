@@ -219,6 +219,9 @@ pub async fn list_channels() -> Result<Vec<Channel>, Error> {
             .map(|metadata| metadata.next_cursor)
         {
             Some(Some(next_cursor)) => {
+                if next_cursor == "" {
+                    break;
+                }
                 cursor = Some(next_cursor);
             }
             _ => {
