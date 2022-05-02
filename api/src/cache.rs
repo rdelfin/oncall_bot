@@ -46,25 +46,25 @@ impl<K: Clone + Hash + PartialEq + Eq, V: Clone, Error: std::error::Error> Cache
         }
     }
 
-    pub async fn get(&self) -> Result<HashMap<K, V>, Error> {
-        let now = Instant::now();
-        let last_update = {
-            let lg = self.last_update.read().await;
-            (*lg).clone()
-        };
-
-        let needs_update = match last_update {
-            None => true,
-            Some(last_update) => (now - last_update) > self.update_interval,
-        };
-
-        if needs_update {
+    pub async fn get_all(&self) -> Result<HashMap<K, V>, Error> {
+        if self.check_needs_update().await {
             let new_values = self.update_fn.call().await?;
             let mut data_lg = self.data.write().await;
             *data_lg = new_values.clone();
             Ok(new_values)
         } else {
             Ok(self.data.read().await.clone())
+        }
+    }
+
+    pub async fn get(&self, k: &K) -> Result<Option<V>, Error> {
+        if self.check_needs_update().await {
+            let new_values = self.update_fn.call().await?;
+            let mut data_lg = self.data.write().await;
+            *data_lg = new_values.clone();
+            Ok(new_values.get(k).cloned())
+        } else {
+            Ok(self.data.read().await.get(k).cloned())
         }
     }
 
@@ -77,6 +77,19 @@ impl<K: Clone + Hash + PartialEq + Eq, V: Clone, Error: std::error::Error> Cache
             None => {
                 data_lg.insert(k, v);
             }
+        }
+    }
+
+    async fn check_needs_update(&self) -> bool {
+        let now = Instant::now();
+        let last_update = {
+            let lg = self.last_update.read().await;
+            (*lg).clone()
+        };
+
+        match last_update {
+            None => true,
+            Some(last_update) => (now - last_update) > self.update_interval,
         }
     }
 }

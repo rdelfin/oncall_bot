@@ -188,7 +188,7 @@ impl AppState {
 
 #[get("/list_slack_users")]
 async fn list_slack_users(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
-    let users = match data.slack_user_cache.get().await {
+    let users = match data.slack_user_cache.get_all().await {
         Ok(users) => users,
         Err(e) => {
             return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
@@ -229,7 +229,7 @@ async fn list_user_groups() -> Result<impl Responder> {
 
 #[get("/list_oncalls")]
 async fn list_oncalls(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
-    let oncalls = match data.oncall_cache.get().await {
+    let oncalls = match data.oncall_cache.get_all().await {
         Ok(oncalls) => oncalls,
         Err(e) => {
             return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
@@ -244,7 +244,7 @@ async fn list_oncalls(data: web::Data<Arc<AppState>>) -> Result<impl Responder> 
 
 #[get("/list_slack_channels")]
 async fn list_slack_channels(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
-    let channels = match data.slack_channel_cache.get().await {
+    let channels = match data.slack_channel_cache.get_all().await {
         Ok(channels) => channels,
         Err(e) => {
             return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
