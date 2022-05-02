@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate diesel;
 
+use crate::cache::Cache;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use dotenv::dotenv;
 use futures_util::future::join_all;
@@ -8,11 +9,7 @@ use log::{warn, Level};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use sync::Syncer;
-use tokio::{
-    join,
-    sync::{Mutex, RwLock},
-    time::Instant,
-};
+use tokio::{join, sync::Mutex};
 
 mod cache;
 mod db;
@@ -131,11 +128,10 @@ struct SyncerKey {
 struct AppState {
     // Map of oncall ID to syncers
     syncers: Mutex<HashMap<SyncerKey, Syncer>>,
-    slack_user_cache: RwLock<Option<(Instant, Vec<slack::User>)>>,
-    slack_channel_cache: RwLock<Option<(Instant, Vec<slack::Channel>)>>,
+    slack_user_cache: Cache<String, slack::User>, // Key is the user ID
+    oncall_cache: Cache<String, opsgenie::Oncall>, // Key is the oncall ID
+    slack_channel_cache: Cache<String, slack::Channel>, // Key is the slack channel ID
 }
-
-const SLACK_REFRESH_PERIOD_S: u64 = 60;
 
 impl AppState {
     async fn new() -> anyhow::Result<AppState> {
@@ -156,41 +152,37 @@ impl AppState {
 
         Ok(AppState {
             syncers: Mutex::new(syncers),
-            slack_user_cache: RwLock::new(None),
-            slack_channel_cache: RwLock::new(None),
+            slack_user_cache: Cache::new(Duration::from_secs(60)),
+            oncall_cache: Cache::new(Duration::from_secs(60)),
+            slack_channel_cache: Cache::new(Duration::from_secs(60)),
         })
     }
 }
 
 #[get("/list_slack_users")]
 async fn list_slack_users(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
-    let last_update = {
-        let lock_guard = data.slack_user_cache.read().await;
-        lock_guard.as_ref().map(|(ts, _)| ts.clone())
-    };
-    let should_update = match last_update {
-        None => true,
-        Some(ts) => ts.elapsed() > Duration::from_secs(SLACK_REFRESH_PERIOD_S),
-    };
+    let users = match data.slack_user_cache.get().await {
+        Some(users) => users.into_values().collect(),
+        None => {
+            let users = match slack::list_users().await {
+                Ok(users) => users,
+                Err(e) => {
+                    return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                        error: format!("{:?}", e),
+                    }));
+                }
+            };
 
-    let users = if should_update {
-        let users = match slack::list_users().await {
-            Ok(users) => users,
-            Err(e) => {
-                return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                    error: format!("{:?}", e),
-                }));
-            }
-        };
-        *data.slack_user_cache.write().await = Some((Instant::now(), users.clone()));
-        users
-    } else {
-        data.slack_user_cache
-            .read()
-            .await
-            .as_ref()
-            .map(|(_, data)| data.clone())
-            .unwrap_or(vec![])
+            data.slack_user_cache
+                .update_all(
+                    &users
+                        .iter()
+                        .map(|user| (user.id.clone(), user.clone()))
+                        .collect(),
+                )
+                .await;
+            users
+        }
     };
     Ok(HttpResponse::Ok().json(ListSlackUsersResponse { users }))
 }
@@ -222,41 +214,50 @@ async fn list_user_groups() -> Result<impl Responder> {
 }
 
 #[get("/list_oncalls")]
-async fn list_oncalls() -> Result<impl Responder> {
-    Ok(HttpResponse::Ok().json(ListOncallsResponse {
-        oncalls: opsgenie::list_oncalls().await,
-    }))
+async fn list_oncalls(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
+    let oncalls = match data.oncall_cache.get().await {
+        Some(oncalls) => oncalls.into_values().collect(),
+        None => {
+            let oncalls = opsgenie::list_oncalls().await;
+
+            data.oncall_cache
+                .update_all(
+                    &oncalls
+                        .iter()
+                        .map(|oncall| (oncall.id.clone(), oncall.clone()))
+                        .collect(),
+                )
+                .await;
+            oncalls
+        }
+    };
+    Ok(HttpResponse::Ok().json(ListOncallsResponse { oncalls }))
 }
 
 #[get("/list_slack_channels")]
 async fn list_slack_channels(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
-    let last_update = {
-        let lock_guard = data.slack_channel_cache.read().await;
-        lock_guard.as_ref().map(|(ts, _)| ts.clone())
-    };
-    let should_update = match last_update {
-        None => true,
-        Some(ts) => ts.elapsed() > Duration::from_secs(SLACK_REFRESH_PERIOD_S),
-    };
+    let channels = match data.slack_channel_cache.get().await {
+        Some(channels) => channels.into_values().collect(),
+        None => {
+            let channels = match slack::list_channels().await {
+                Ok(channels) => channels,
+                Err(e) => {
+                    return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                        error: format!("{:?}", e),
+                    }));
+                }
+            };
 
-    let channels = if should_update {
-        let channels = match slack::list_channels().await {
-            Ok(channels) => channels,
-            Err(e) => {
-                return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
-                    error: format!("{:?}", e),
-                }));
-            }
-        };
-        *data.slack_channel_cache.write().await = Some((Instant::now(), channels.clone()));
-        channels
-    } else {
-        data.slack_channel_cache
-            .read()
-            .await
-            .as_ref()
-            .map(|(_, data)| data.clone())
-            .unwrap_or(vec![])
+            data.slack_channel_cache
+                .update_all(
+                    &channels
+                        .iter()
+                        .map(|channel| (channel.id.clone(), channel.clone()))
+                        .collect(),
+                )
+                .await;
+            channels
+        }
     };
 
     Ok(HttpResponse::Ok().json(ListSlackChannelsResponse { channels }))
