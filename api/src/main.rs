@@ -37,6 +37,15 @@ struct UserMapping {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct Notification {
+    pub id: i32,
+    pub oncall_id: String,
+    pub oncall_name: String,
+    pub slack_channel_id: String,
+    pub slack_channel_name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct AddSyncRequest {
     oncall_id: String,
     user_group_id: String,
@@ -104,6 +113,27 @@ struct RemoveUserMapRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct GetNotificationForSlackChannelRequest {
+    slack_channel_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct GetNotificationForOncallRequest {
+    oncall_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct AddNotificationRequest {
+    oncall_id: String,
+    slack_channel_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct RemoveNotificationRequest {
+    notification_id: i32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct ListUserMappingsResponse {
     user_mappings: Vec<UserMapping>,
 }
@@ -111,6 +141,31 @@ struct ListUserMappingsResponse {
 #[derive(Serialize, Deserialize, Debug)]
 struct GetSlackUserMappingResponse {
     user_mapping: Option<UserMapping>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ListNotificationsResponse {
+    notifications: Vec<Notification>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct GetNotificationForSlackChannelResponse {
+    notification: Option<Notification>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct GetNotificationForOncallResponse {
+    notifications: Vec<Notification>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct AddNotificationResponse {
+    notification: Notification,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct RemoveNotificationResponse {
+    notification: Notification,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -152,6 +207,37 @@ async fn slack_channel_update() -> slack::Result<HashMap<String, slack::Channel>
         .collect())
 }
 
+//
+// Helper functions
+//
+
+async fn db_notification_to_response(
+    notification: models::NotifiedSlackChannel,
+    data: &Arc<AppState>,
+) -> anyhow::Result<Notification> {
+    let slack_channel = data
+        .slack_channel_cache
+        .get(&notification.slack_channel_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("slack channel not found"))?;
+    let oncall = data
+        .oncall_cache
+        .get(&notification.slack_channel_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("slack channel not found"))?;
+    Ok(Notification {
+        id: notification.id,
+        oncall_id: notification.oncall_id,
+        oncall_name: oncall.name.clone(),
+        slack_channel_id: notification.slack_channel_id,
+        slack_channel_name: slack_channel.name.clone(),
+    })
+}
+
+//
+// App State
+//
+
 struct AppState {
     // Map of oncall ID to syncers
     syncers: Mutex<HashMap<SyncerKey, Syncer>>,
@@ -185,6 +271,10 @@ impl AppState {
         })
     }
 }
+
+//
+// Endpoints
+//
 
 #[get("/list_slack_users")]
 async fn list_slack_users(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
@@ -594,6 +684,197 @@ async fn get_slack_user_mapping(
     Ok(HttpResponse::Ok().json(GetSlackUserMappingResponse { user_mapping }))
 }
 
+#[get("/notification/list")]
+async fn list_notifications(data: web::Data<Arc<AppState>>) -> Result<impl Responder> {
+    // Fetch notifications from DB
+    let notifications = match web::block(move || {
+        let conn = db::connection();
+        db::list_notified_slack_channels(&conn)
+    })
+    .await
+    {
+        Err(blocking_error) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", blocking_error),
+            }));
+        }
+        Ok(Err(db_error)) => {
+            return Ok(db_error.into());
+        }
+        Ok(Ok(res)) => res,
+    };
+
+    let notifications: Vec<_> = match join_all(notifications.into_iter().map(|notification| {
+        let data = data.clone();
+        async move { db_notification_to_response(notification, &data).await }
+    }))
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, anyhow::Error>>()
+    {
+        Ok(notifications) => notifications,
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{}", e),
+            }));
+        }
+    };
+
+    Ok(HttpResponse::Ok().json(ListNotificationsResponse { notifications }))
+}
+
+#[get("/notifications/slack")]
+async fn get_notification_for_slack_channel(
+    data: web::Data<Arc<AppState>>,
+    info: web::Query<GetNotificationForSlackChannelRequest>,
+) -> Result<impl Responder> {
+    let notification = match web::block(move || {
+        let conn = db::connection();
+        db::get_oncall_notified_in_channel(&conn, &info.slack_channel_id)
+    })
+    .await
+    {
+        Err(blocking_error) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", blocking_error),
+            }));
+        }
+        Ok(Err(db_error)) => {
+            return Ok(db_error.into());
+        }
+        Ok(Ok(res)) => res,
+    };
+
+    let notification = match join_all(notification.into_iter().map(|notification| {
+        let data = data.clone();
+        async move { db_notification_to_response(notification, &data).await }
+    }))
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, anyhow::Error>>()
+    {
+        Ok(notification) => notification,
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{}", e),
+            }));
+        }
+    };
+
+    let notification = notification.into_iter().nth(0);
+
+    Ok(HttpResponse::Ok().json(GetNotificationForSlackChannelResponse { notification }))
+}
+
+#[get("/notifications/oncall")]
+async fn get_notification_for_oncall(
+    data: web::Data<Arc<AppState>>,
+    info: web::Query<GetNotificationForOncallRequest>,
+) -> Result<impl Responder> {
+    let notifications = match web::block(move || {
+        let conn = db::connection();
+        db::get_channels_notified_for_oncall(&conn, &info.oncall_id)
+    })
+    .await
+    {
+        Err(blocking_error) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", blocking_error),
+            }));
+        }
+        Ok(Err(db_error)) => {
+            return Ok(db_error.into());
+        }
+        Ok(Ok(res)) => res,
+    };
+
+    let notifications = match join_all(notifications.into_iter().map(|notification| {
+        let data = data.clone();
+        async move { db_notification_to_response(notification, &data).await }
+    }))
+    .await
+    .into_iter()
+    .collect::<Result<Vec<_>, anyhow::Error>>()
+    {
+        Ok(notifications) => notifications,
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{}", e),
+            }));
+        }
+    };
+
+    Ok(HttpResponse::Ok().json(GetNotificationForOncallResponse { notifications }))
+}
+
+#[post("/notifications/add")]
+async fn add_notification(
+    data: web::Data<Arc<AppState>>,
+    info: web::Query<AddNotificationRequest>,
+) -> Result<impl Responder> {
+    let notification = match web::block(move || {
+        let conn = db::connection();
+        db::add_channel_oncall_notification(&conn, &info.slack_channel_id, &info.oncall_id)
+    })
+    .await
+    {
+        Err(blocking_error) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", blocking_error),
+            }));
+        }
+        Ok(Err(db_error)) => {
+            return Ok(db_error.into());
+        }
+        Ok(Ok(res)) => res,
+    };
+
+    let notification = match db_notification_to_response(notification, &data).await {
+        Ok(notification) => notification,
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{}", e),
+            }));
+        }
+    };
+
+    Ok(HttpResponse::Ok().json(AddNotificationResponse { notification }))
+}
+
+#[post("/notifications/remove")]
+async fn remove_notification(
+    data: web::Data<Arc<AppState>>,
+    info: web::Query<RemoveNotificationRequest>,
+) -> Result<impl Responder> {
+    let notification = match web::block(move || {
+        let conn = db::connection();
+        db::remove_channel_oncall_notification(&conn, info.notification_id)
+    })
+    .await
+    {
+        Err(blocking_error) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{:?}", blocking_error),
+            }));
+        }
+        Ok(Err(db_error)) => {
+            return Ok(db_error.into());
+        }
+        Ok(Ok(res)) => res,
+    };
+
+    let notification = match db_notification_to_response(notification, &data).await {
+        Ok(notification) => notification,
+        Err(e) => {
+            return Ok(HttpResponse::InternalServerError().json(ErrorResponse {
+                error: format!("{}", e),
+            }));
+        }
+    };
+
+    Ok(HttpResponse::Ok().json(RemoveNotificationResponse { notification }))
+}
+
 async fn not_found() -> Result<impl Responder> {
     Ok(HttpResponse::NotFound().json(ErrorResponse {
         error: "the requested page does not exist".into(),
@@ -623,6 +904,10 @@ async fn main() -> anyhow::Result<()> {
             .service(list_syncs)
             .service(list_user_mappings)
             .service(get_slack_user_mapping)
+            .service(list_notifications)
+            .service(get_notification_for_slack_channel)
+            .service(get_notification_for_oncall)
+            .service(add_notification)
             .default_service(web::route().to(not_found))
     })
     .bind(("127.0.0.1", 8080))?
