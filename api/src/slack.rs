@@ -14,6 +14,8 @@ pub enum Error {
     UrlParseError(#[from] url::ParseError),
 }
 
+pub type Result<T = (), E = Error> = std::result::Result<T, E>;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserGroup {
     pub id: String,
@@ -94,7 +96,7 @@ pub struct ConversationSetTopicResponse {
     pub channel: Channel,
 }
 
-pub async fn list_user_groups() -> Result<Vec<UserGroup>, Error> {
+pub async fn list_user_groups() -> Result<Vec<UserGroup>> {
     let slack_oauth_token = slack_oauth_token();
     let client = reqwest::Client::new();
     let usergroups_response = client
@@ -113,7 +115,7 @@ pub async fn list_user_groups() -> Result<Vec<UserGroup>, Error> {
     }
 }
 
-pub async fn get_user_group(id: &str) -> Result<UserGroup, Error> {
+pub async fn get_user_group(id: &str) -> Result<UserGroup> {
     list_user_groups()
         .await?
         .into_iter()
@@ -121,7 +123,7 @@ pub async fn get_user_group(id: &str) -> Result<UserGroup, Error> {
         .ok_or_else(|| Error::UserGroupNotFound)
 }
 
-pub async fn set_user_group(id: &str, users: &[String]) -> Result<(), Error> {
+pub async fn set_user_group(id: &str, users: &[String]) -> Result {
     let slack_oauth_token = slack_oauth_token();
     let client = reqwest::Client::new();
     let usergroups_response = client
@@ -141,7 +143,7 @@ pub async fn set_user_group(id: &str, users: &[String]) -> Result<(), Error> {
     }
 }
 
-pub async fn list_users() -> Result<Vec<User>, Error> {
+pub async fn list_users() -> Result<Vec<User>> {
     let slack_oauth_token = slack_oauth_token();
     let client = reqwest::Client::new();
     let users_response = client
@@ -163,7 +165,7 @@ pub async fn list_users() -> Result<Vec<User>, Error> {
     }
 }
 
-pub async fn get_user(id: &str) -> Result<User, Error> {
+pub async fn get_user(id: &str) -> Result<User> {
     let slack_oauth_token = slack_oauth_token();
     let client = reqwest::Client::new();
     let users_response = client
@@ -182,7 +184,7 @@ pub async fn get_user(id: &str) -> Result<User, Error> {
     }
 }
 
-pub async fn list_channels() -> Result<Vec<Channel>, Error> {
+pub async fn list_channels() -> Result<Vec<Channel>> {
     let slack_oauth_token = slack_oauth_token();
     let client = reqwest::Client::new();
     let mut channel_list = vec![];
@@ -233,7 +235,7 @@ pub async fn list_channels() -> Result<Vec<Channel>, Error> {
     Ok(channel_list)
 }
 
-pub async fn set_channel_topic(channel_id: &str, topic: &str) -> Result<Channel, Error> {
+pub async fn set_channel_topic(channel_id: &str, topic: &str) -> Result<Channel> {
     let slack_oauth_token = slack_oauth_token();
     let client = reqwest::Client::new();
 
@@ -257,7 +259,7 @@ pub async fn set_channel_topic(channel_id: &str, topic: &str) -> Result<Channel,
     }
 }
 
-pub async fn post_message(channel_id: &str, message: &str) -> Result<(), Error> {
+pub async fn post_message(channel_id: &str, message: &str) -> Result<()> {
     let slack_oauth_token = slack_oauth_token();
     let client = reqwest::Client::new();
 

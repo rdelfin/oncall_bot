@@ -10,6 +10,8 @@ pub enum Error {
     HttpErrorCode(StatusCode),
 }
 
+pub type Result<T = (), E = Error> = std::result::Result<T, E>;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Oncall {
     pub id: String,
@@ -94,7 +96,7 @@ pub async fn list_oncalls() -> Vec<Oncall> {
     }
 }
 
-pub async fn get_oncall_name(id: &str) -> Result<String, Error> {
+pub async fn get_oncall_name(id: &str) -> Result<String> {
     let opsgenie_key = opsgenie_key();
     let client = reqwest::Client::new();
     let schedule_response = client
@@ -114,7 +116,7 @@ pub async fn get_oncall_name(id: &str) -> Result<String, Error> {
     }
 }
 
-pub async fn list_users() -> Result<Vec<User>, Error> {
+pub async fn list_users() -> Result<Vec<User>> {
     let opsgenie_key = opsgenie_key();
     let client = reqwest::Client::new();
     let users_response = client
@@ -130,7 +132,7 @@ pub async fn list_users() -> Result<Vec<User>, Error> {
     }
 }
 
-pub async fn get_user(id: &str) -> Result<User, Error> {
+pub async fn get_user(id: &str) -> Result<User> {
     let opsgenie_key = opsgenie_key();
     let client = reqwest::Client::new();
     let user_response = client
@@ -146,7 +148,7 @@ pub async fn get_user(id: &str) -> Result<User, Error> {
     }
 }
 
-pub async fn get_current_oncalls(oncall_id: &str) -> Result<Vec<String>, Error> {
+pub async fn get_current_oncalls(oncall_id: &str) -> Result<Vec<String>> {
     let opsgenie_key = opsgenie_key();
     let client = reqwest::Client::new();
     let oncall_response = client
