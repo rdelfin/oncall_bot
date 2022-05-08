@@ -908,6 +908,7 @@ async fn main() -> anyhow::Result<()> {
             .service(get_notification_for_slack_channel)
             .service(get_notification_for_oncall)
             .service(add_notification)
+            .service(remove_notification)
             .default_service(web::route().to(not_found))
     })
     .bind(("127.0.0.1", 8080))?
