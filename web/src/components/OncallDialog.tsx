@@ -33,11 +33,11 @@ import {
   RemoveSync,
 } from "../Api";
 
-interface UserMapDialogProps {
+interface OncallDialogProps {
   oncall: Oncall;
 }
 
-export default function OncallDialog(props: UserMapDialogProps) {
+export default function OncallDialog(props: OncallDialogProps) {
   const [open, setOpen] = useState<boolean>(false);
   const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
   const [currentSyncs, setCurrentSyncs] = useState<OncallSync[]>([]);
