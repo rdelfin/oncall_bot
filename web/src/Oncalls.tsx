@@ -10,6 +10,7 @@ import { useSnackbar } from "notistack";
 
 import { Oncall, ListOncalls } from "./Api";
 import OncallCard from "./components/OncallCard";
+import OncallDialog from "./components/OncallDialog";
 import LoadCard from "./components/LoadCard";
 
 export default function Oncalls() {
@@ -49,6 +50,7 @@ export default function Oncalls() {
         ))}
       </Grid>
       <LoadCard open={!loaded} />
+      <OncallDialog />
     </div>
   );
 }
