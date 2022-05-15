@@ -25,8 +25,6 @@ import { useSnackbar } from "notistack";
 import {
   Oncall,
   ListSlackChannels,
-  UserGroup,
-  OncallSync,
   AddNotification,
   RemoveNotification,
   GetNotificationForOncall,
