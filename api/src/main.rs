@@ -222,9 +222,9 @@ async fn db_notification_to_response(
         .ok_or_else(|| anyhow::anyhow!("slack channel not found"))?;
     let oncall = data
         .oncall_cache
-        .get(&notification.slack_channel_id)
+        .get(&notification.oncall_id)
         .await?
-        .ok_or_else(|| anyhow::anyhow!("slack channel not found"))?;
+        .ok_or_else(|| anyhow::anyhow!("oncall not found"))?;
     Ok(Notification {
         id: notification.id,
         oncall_id: notification.oncall_id,
