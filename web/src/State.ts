@@ -37,3 +37,18 @@ export const oncallCardAddingState = atom<boolean>({
   key: "oncallCardAddingState",
   default: false,
 });
+
+export const notificationsCardLoadingState = atom<boolean>({
+  key: "notificationsCardLoadingState",
+  default: false,
+});
+
+export const notificationsCardDeletingState = atom<boolean>({
+  key: "notificationsCardDeletingState",
+  default: false,
+});
+
+export const notificationsCardAddingState = atom<boolean>({
+  key: "notificationsCardAddingState",
+  default: false,
+});

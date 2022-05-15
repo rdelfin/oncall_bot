@@ -17,8 +17,12 @@ import {
   oncallCardLoadingState,
   oncallCardDeletingState,
   oncallCardAddingState,
+  notificationsCardLoadingState,
+  notificationsCardDeletingState,
+  notificationsCardAddingState,
 } from "../State";
 import UserMapSyncBox from "./UserMapSyncBox";
+import NotificationBox from "./NotificationBox";
 
 export default function OncallDialog() {
   const [oncallCard, setOncallCard] = useRecoilState<Oncall | null>(
@@ -27,6 +31,15 @@ export default function OncallDialog() {
   const oncallCardLoading = useRecoilValue<boolean>(oncallCardLoadingState);
   const oncallCardDeleting = useRecoilValue<boolean>(oncallCardDeletingState);
   const oncallCardAdding = useRecoilValue<boolean>(oncallCardAddingState);
+  const notificationsCardLoading = useRecoilValue<boolean>(
+    notificationsCardLoadingState
+  );
+  const notificationsCardDeleting = useRecoilValue<boolean>(
+    notificationsCardDeletingState
+  );
+  const notificationsCardAdding = useRecoilValue<boolean>(
+    notificationsCardAddingState
+  );
 
   const handleClose = () => {
     if (!(oncallCardLoading || oncallCardDeleting || oncallCardAdding)) {
@@ -34,7 +47,13 @@ export default function OncallDialog() {
     }
   };
 
-  const loading = oncallCardLoading || oncallCardDeleting || oncallCardAdding;
+  const loading =
+    oncallCardLoading ||
+    oncallCardDeleting ||
+    oncallCardAdding ||
+    notificationsCardLoading ||
+    notificationsCardDeleting ||
+    notificationsCardAdding;
 
   return (
     <div>
@@ -43,6 +62,7 @@ export default function OncallDialog() {
         <DialogContent>
           <UserMapSyncBox oncall={oncallCard} />
           <Divider variant="middle" />
+          <NotificationBox oncall={oncallCard} />
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose} disabled={loading}>

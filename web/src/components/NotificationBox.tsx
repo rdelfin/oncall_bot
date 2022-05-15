@@ -24,12 +24,14 @@ import { useSnackbar } from "notistack";
 
 import {
   Oncall,
-  ListUserGroups,
+  ListSlackChannels,
   UserGroup,
   OncallSync,
-  SyncedWith,
-  AddSync,
-  RemoveSync,
+  AddNotification,
+  RemoveNotification,
+  GetNotificationForOncall,
+  Notification,
+  SlackChannel,
 } from "../Api";
 import {
   oncallCardLoadingState,
@@ -40,92 +42,93 @@ import {
   notificationsCardAddingState,
 } from "../State";
 
-interface UserMapSyncBoxProps {
+interface NotificationBoxProps {
   oncall: Oncall | null;
 }
 
-export default function UserMapSyncBox(props: UserMapSyncBoxProps) {
-  const [currentSyncs, setCurrentSyncs] = useState<OncallSync[]>([]);
+export default function NotificationBox(props: NotificationBoxProps) {
+  const [currentNotifications, setCurrentNotifications] = useState<
+    Notification[]
+  >([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
+  const [slackChannels, setSlackChannels] = useState<SlackChannel[]>([]);
 
-  const [oncallCardLoading, setOncallCardLoading] = useRecoilState<boolean>(
-    oncallCardLoadingState
-  );
-  const [oncallCardDeleting, setOncallCardDeleting] = useRecoilState<boolean>(
-    oncallCardDeletingState
-  );
-  const [oncallCardAdding, setOncallCardAdding] = useRecoilState<boolean>(
-    oncallCardAddingState
-  );
-  const notificationsCardLoading = useRecoilValue<boolean>(
-    notificationsCardLoadingState
-  );
-  const notificationsCardDeleting = useRecoilValue<boolean>(
-    notificationsCardDeletingState
-  );
-  const notificationsCardAdding = useRecoilValue<boolean>(
-    notificationsCardAddingState
-  );
+  const oncallCardLoading = useRecoilValue<boolean>(oncallCardLoadingState);
+  const oncallCardDeleting = useRecoilValue<boolean>(oncallCardDeletingState);
+  const oncallCardAdding = useRecoilValue<boolean>(oncallCardAddingState);
+  const [notificationsCardLoading, setNotificationsCardLoading] =
+    useRecoilState<boolean>(notificationsCardLoadingState);
+  const [notificationsCardDeleting, setNotificationsCardDeleting] =
+    useRecoilState<boolean>(notificationsCardDeletingState);
+  const [notificationsCardAdding, setNotificationsCardAdding] =
+    useRecoilState<boolean>(notificationsCardAddingState);
 
   const { enqueueSnackbar } = useSnackbar();
 
   React.useEffect(() => {
     if (props.oncall !== null) {
-      setOncallCardLoading(true);
-      let userGroupsPromise = ListUserGroups().then(
+      setNotificationsCardLoading(true);
+      let listSlackChannelsPromise = ListSlackChannels().then(
         (result) => {
-          if (result.user_groups !== undefined && result.user_groups !== null) {
-            setUserGroups(result.user_groups);
+          if (result.channels !== undefined && result.channels !== null) {
+            setSlackChannels(result.channels);
           } else {
-            enqueueSnackbar(`Error fetching user groups: ${result.error}`, {
+            enqueueSnackbar(`Error fetching slack channels: ${result.error}`, {
               variant: "error",
             });
           }
         },
         (error) => {
-          enqueueSnackbar(`Error fetching user groups: ${error}`, {
+          enqueueSnackbar(`Error fetching slack channels: ${error}`, {
             variant: "error",
           });
         }
       );
-      let syncedWithPromise = SyncedWith(props.oncall.id).then(
+      let getNotificationForOncallPromise = GetNotificationForOncall(
+        props.oncall.id
+      ).then(
         (result) => {
-          if (result.syncs !== undefined && result.syncs !== null) {
-            setCurrentSyncs(result.syncs);
+          if (
+            result.notifications !== undefined &&
+            result.notifications !== null
+          ) {
+            setCurrentNotifications(result.notifications);
           } else {
-            enqueueSnackbar(`Error fetching user groups: ${result.error}`, {
+            enqueueSnackbar(`Error fetching notifications: ${result.error}`, {
               variant: "error",
             });
           }
         },
         (error) => {
-          enqueueSnackbar(`Error fetching user groups: ${error}`, {
+          enqueueSnackbar(`Error fetching notifications: ${error}`, {
             variant: "error",
           });
         }
       );
 
-      Promise.all([userGroupsPromise, syncedWithPromise]).finally(() => {
-        setOncallCardLoading(false);
+      Promise.all([
+        listSlackChannelsPromise,
+        getNotificationForOncallPromise,
+      ]).finally(() => {
+        setNotificationsCardLoading(false);
       });
     }
-  }, [props.oncall, enqueueSnackbar, setOncallCardLoading]);
+  }, [props.oncall, enqueueSnackbar, setNotificationsCardLoading]);
 
   const handleRemove = (
     event: React.MouseEvent<HTMLElement>,
-    oncall_sync_id: number
+    notification_id: number
   ) => {
     if (props.oncall === null) {
-      enqueueSnackbar("Error removing oncall group: Oncall is null", {
+      enqueueSnackbar("Error removing slack channel: Oncall is null", {
         variant: "error",
       });
       return;
     }
     let oncall_id = props.oncall.id;
 
-    setOncallCardDeleting(true);
-    RemoveSync(oncall_sync_id)
+    setNotificationsCardDeleting(true);
+    RemoveNotification(notification_id)
       .then(
         (result) => {
           if (result.error !== undefined && result.error !== null) {
@@ -140,11 +143,14 @@ export default function UserMapSyncBox(props: UserMapSyncBoxProps) {
           });
         }
       )
-      .then((result) => SyncedWith(oncall_id))
+      .then((result) => GetNotificationForOncall(oncall_id))
       .then(
         (result) => {
-          if (result.syncs !== undefined && result.syncs !== null) {
-            setCurrentSyncs(result.syncs);
+          if (
+            result.notifications !== undefined &&
+            result.notifications !== null
+          ) {
+            setCurrentNotifications(result.notifications);
           } else {
             enqueueSnackbar(`Error fetching user groups: ${result.error}`, {
               variant: "error",
@@ -158,7 +164,7 @@ export default function UserMapSyncBox(props: UserMapSyncBoxProps) {
         }
       )
       .finally(() => {
-        setOncallCardDeleting(false);
+        setNotificationsCardDeleting(false);
       });
   };
 
@@ -169,9 +175,9 @@ export default function UserMapSyncBox(props: UserMapSyncBoxProps) {
       enqueueSnackbar("Oncall is unexpectedly null", { variant: "error" });
     } else {
       let oncall_id = props.oncall.id;
-      setOncallCardAdding(true);
+      setNotificationsCardAdding(true);
 
-      AddSync(props.oncall.id, selectedId)
+      AddNotification(props.oncall.id, selectedId)
         .then(
           (result) => {
             if (result.error !== undefined && result.error !== null) {
@@ -186,11 +192,14 @@ export default function UserMapSyncBox(props: UserMapSyncBoxProps) {
             });
           }
         )
-        .then((result) => SyncedWith(oncall_id))
+        .then((result) => GetNotificationForOncall(oncall_id))
         .then(
           (result) => {
-            if (result.syncs !== undefined && result.syncs !== null) {
-              setCurrentSyncs(result.syncs);
+            if (
+              result.notifications !== undefined &&
+              result.notifications !== null
+            ) {
+              setCurrentNotifications(result.notifications);
             } else {
               enqueueSnackbar(`Error fetching user groups: ${result.error}`, {
                 variant: "error",
@@ -204,7 +213,7 @@ export default function UserMapSyncBox(props: UserMapSyncBoxProps) {
           }
         )
         .finally(() => {
-          setOncallCardAdding(false);
+          setNotificationsCardAdding(false);
         });
     }
   };
@@ -217,24 +226,22 @@ export default function UserMapSyncBox(props: UserMapSyncBoxProps) {
     notificationsCardDeleting ||
     notificationsCardAdding;
 
-  const userGroupOptions = userGroups.map((userGroup) => {
-    return { label: userGroup.name, key: userGroup.id };
+  const slackChannelOptions = slackChannels.map((channel) => {
+    return { label: channel.name, key: channel.id };
   });
 
   return (
     <Box sx={{ my: 4 }}>
-      <Typography variant="subtitle1">User Group Syncs</Typography>
+      <Typography variant="subtitle1">Slack Channel Notifications</Typography>
       <TableContainer component={Paper} sx={{ minWidth: 550 }}>
-        <Table aria-label="user group table">
+        <Table aria-label="slack channel table">
           <TableHead>
-            <TableCell>User Group</TableCell>
-            <TableCell>Handle</TableCell>
+            <TableCell>Slack Channel</TableCell>
             <TableCell>Add/Remove</TableCell>
           </TableHead>
-          {currentSyncs.map((sync) => (
+          {currentNotifications.map((notification) => (
             <TableRow>
-              <TableCell>{sync.user_group_name}</TableCell>
-              <TableCell>{sync.user_group_handle}</TableCell>
+              <TableCell>{notification.slack_channel_name}</TableCell>
               <TableCell>
                 <Fab
                   color="primary"
@@ -242,7 +249,7 @@ export default function UserMapSyncBox(props: UserMapSyncBoxProps) {
                   size="small"
                   disabled={disabled}
                   onClick={(e) => {
-                    handleRemove(e, sync.id);
+                    handleRemove(e, notification.id);
                   }}
                 >
                   <RemoveIcon />
@@ -253,26 +260,25 @@ export default function UserMapSyncBox(props: UserMapSyncBoxProps) {
           <TableRow>
             <TableCell>
               <Autocomplete
-                id="user-group-map-field"
-                options={userGroupOptions}
+                id="slack-channel-field"
+                options={slackChannelOptions}
                 fullWidth
                 disabled={disabled}
-                onChange={(event, userGroupOption) => {
+                onChange={(event, slackChannelOption) => {
                   if (
-                    userGroupOption === null ||
-                    userGroupOption === undefined
+                    slackChannelOption === null ||
+                    slackChannelOption === undefined
                   ) {
                     setSelectedId(null);
                   } else {
-                    setSelectedId(userGroupOption.key);
+                    setSelectedId(slackChannelOption.key);
                   }
                 }}
                 renderInput={(params) => (
-                  <TextField {...params} label="Opsgenie User" />
+                  <TextField {...params} label="Slack Channel" />
                 )}
               />
             </TableCell>
-            <TableCell></TableCell>
             <TableCell>
               <Fab
                 color="primary"
