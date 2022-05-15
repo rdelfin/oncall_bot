@@ -3,11 +3,11 @@ extern crate diesel;
 
 use crate::{cache::Cache, notifier::SlackNotifier, user_group_sync::UserGroupSyncer};
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
-use dotenv::dotenv;
+use dotenv;
 use futures_util::future::join_all;
 use log::{warn, Level};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, env, sync::Arc, time::Duration};
 use tokio::{join, sync::Mutex};
 
 mod cache;
@@ -947,7 +947,8 @@ async fn not_found() -> Result<impl Responder> {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     simple_logger::init_with_level(Level::Info).unwrap();
-    dotenv().ok();
+    dotenv::from_filename(env::var("DOTENV_FILE").unwrap_or(".env".into()))
+        .expect("error loading environment");
 
     let app_state = Arc::new(AppState::new().await?);
 
@@ -974,7 +975,13 @@ async fn main() -> anyhow::Result<()> {
             .service(remove_notification)
             .default_service(web::route().to(not_found))
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind((
+        "127.0.0.1",
+        env::var("PORT")
+            .unwrap_or("80".into())
+            .parse()
+            .expect("unable to parse provided port to a number"),
+    ))?
     .run()
     .await?;
 
