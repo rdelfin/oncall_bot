@@ -134,7 +134,8 @@ export interface AddSyncResponse {
 }
 
 export interface AddNotificationResponse {
-  notification: Notification;
+  notification?: Notification | null;
+  error?: string | null;
 }
 
 export interface RemoveSyncResponse {
@@ -151,7 +152,8 @@ export interface RemoveUserMapResponse {
 }
 
 export interface RemoveNotificationResponse {
-  notification: Notification;
+  notification?: Notification | null;
+  error?: string | null;
 }
 
 export function ListOpsgenieUsers(): Promise<ListOpsgenieUsersResponse> {
@@ -289,7 +291,7 @@ export function RemoveSync(
 export function RemoveNotification(
   notification_id: number
 ): Promise<RemoveNotificationResponse> {
-  return fetch("/notifications/remove", {
+  return fetch("/api/notifications/remove", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

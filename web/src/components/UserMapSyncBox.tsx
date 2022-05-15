@@ -104,7 +104,7 @@ export default function UserMapSyncBox(props: UserMapSyncBoxProps) {
     event: React.MouseEvent<HTMLElement>,
     oncall_sync_id: number
   ) => {
-    if (props.oncall?.id !== null) {
+    if (props.oncall === null) {
       enqueueSnackbar("Error removing oncall group: Oncall is null", {
         variant: "error",
       });
