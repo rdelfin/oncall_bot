@@ -9,6 +9,18 @@ export interface SlackUser {
   is_bot: boolean;
 }
 
+export interface SlackChannelTopic {
+  value: string;
+  creator: string;
+  last_set: number;
+}
+
+export interface SlackChannel {
+  id: string;
+  name: string;
+  topic: SlackChannelTopic;
+}
+
 export interface OpsgenieUser {
   id: string;
   username: string;
@@ -41,8 +53,21 @@ export interface UserGroup {
   handle: string;
 }
 
+export interface Notification {
+  id: number;
+  oncall_id: string;
+  oncall_name: string;
+  slack_channel_id: string;
+  slack_channel_name: string;
+}
+
 export interface ListSlackUsersResponse {
   users?: SlackUser[];
+  error?: string;
+}
+
+export interface ListSlackChannelsResponse {
+  channels?: SlackChannel[];
   error?: string;
 }
 
@@ -61,8 +86,33 @@ export interface ListOncallsResponse {
   error?: string;
 }
 
+export interface ListUserGroupsResponse {
+  user_groups?: UserGroup[] | null;
+  error?: string | null;
+}
+
+export interface ListSyncsResponse {
+  syncs?: OncallSync[] | null;
+  error?: string | null;
+}
+
+export interface ListNotificationsResponse {
+  notifications?: Notification[];
+  error?: string;
+}
+
 export interface GetSlackUserMappingResponse {
   user_mapping?: UserMapping | null;
+}
+
+export interface GetNotificationForSlackChannelResponse {
+  notification?: Notification | null;
+  error?: string;
+}
+
+export interface GetNotificationForOncallResponse {
+  notifications: Notification[];
+  error?: string;
 }
 
 export interface AddUserMapResponse {
@@ -76,11 +126,6 @@ export interface SyncedWithResponse {
   error?: string | null;
 }
 
-export interface ListSyncsResponse {
-  syncs?: OncallSync[] | null;
-  error?: string | null;
-}
-
 export interface AddSyncResponse {
   id?: number | null;
   oncall_id?: string | null;
@@ -88,9 +133,8 @@ export interface AddSyncResponse {
   error?: string | null;
 }
 
-export interface ListUserGroupsResponse {
-  user_groups?: UserGroup[] | null;
-  error?: string | null;
+export interface AddNotificationResponse {
+  notification: Notification;
 }
 
 export interface RemoveSyncResponse {
@@ -106,12 +150,20 @@ export interface RemoveUserMapResponse {
   error?: string | null;
 }
 
+export interface RemoveNotificationResponse {
+  notification: Notification;
+}
+
 export function ListOpsgenieUsers(): Promise<ListOpsgenieUsersResponse> {
   return fetch("/api/list_opsgenie_users").then((res) => res.json());
 }
 
 export function ListSlackUsers(): Promise<ListSlackUsersResponse> {
   return fetch("/api/list_slack_users").then((res) => res.json());
+}
+
+export function ListSlackChannels(): Promise<ListSlackChannelsResponse> {
+  return fetch("/api/list_slack_channels").then((res) => res.json());
 }
 
 export function ListUserMappings(): Promise<ListUserMappingsResponse> {
@@ -122,6 +174,10 @@ export function ListOncalls(): Promise<ListOncallsResponse> {
   return fetch("/api/list_oncalls").then((res) => res.json());
 }
 
+export function ListNotifications(): Promise<ListNotificationsResponse> {
+  return fetch("/api/notification/list").then((res) => res.json());
+}
+
 export function GetSlackUserMapping(
   slack_user_id: string
 ): Promise<GetSlackUserMappingResponse> {
@@ -129,6 +185,24 @@ export function GetSlackUserMapping(
     `/api/get_slack_user_mapping?slack_user_id=${encodeURIComponent(
       slack_user_id
     )}`
+  ).then((res) => res.json());
+}
+
+export function GetNotificationForSlackChannel(
+  slack_channel_id: string
+): Promise<GetNotificationForSlackChannelResponse> {
+  return fetch(
+    `/api/notifications/slack?slack_channel_id=${encodeURIComponent(
+      slack_channel_id
+    )}`
+  ).then((res) => res.json());
+}
+
+export function GetNotificationForOncall(
+  oncall_id: string
+): Promise<GetNotificationForOncallResponse> {
+  return fetch(
+    `/api/notifications/oncall?oncall_id=${encodeURIComponent(oncall_id)}`
   ).then((res) => res.json());
 }
 
@@ -170,6 +244,20 @@ export function AddSync(
   }).then((res) => res.json());
 }
 
+export function AddNotification(
+  oncall_id: string,
+  slack_channel_id: string
+): Promise<AddNotificationResponse> {
+  return fetch("/api/notifications/add", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      oncall_id,
+      slack_channel_id,
+    }),
+  }).then((res) => res.json());
+}
+
 export function ListUserGroups(): Promise<ListUserGroupsResponse> {
   return fetch("/api/list_user_groups").then((res) => res.json());
 }
@@ -194,6 +282,18 @@ export function RemoveSync(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       oncall_sync_id,
+    }),
+  }).then((res) => res.json());
+}
+
+export function RemoveNotification(
+  notification_id: number
+): Promise<RemoveNotificationResponse> {
+  return fetch("/notifications/remove", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      notification_id,
     }),
   }).then((res) => res.json());
 }
