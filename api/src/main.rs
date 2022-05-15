@@ -810,11 +810,11 @@ async fn get_notification_for_oncall(
 #[post("/notifications/add")]
 async fn add_notification(
     data: web::Data<Arc<AppState>>,
-    info: web::Query<AddNotificationRequest>,
+    req: web::Json<AddNotificationRequest>,
 ) -> Result<impl Responder> {
     let notification = match web::block(move || {
         let conn = db::connection();
-        db::add_channel_oncall_notification(&conn, &info.slack_channel_id, &info.oncall_id)
+        db::add_channel_oncall_notification(&conn, &req.slack_channel_id, &req.oncall_id)
     })
     .await
     {
@@ -844,11 +844,11 @@ async fn add_notification(
 #[post("/notifications/remove")]
 async fn remove_notification(
     data: web::Data<Arc<AppState>>,
-    info: web::Query<RemoveNotificationRequest>,
+    req: web::Json<RemoveNotificationRequest>,
 ) -> Result<impl Responder> {
     let notification = match web::block(move || {
         let conn = db::connection();
-        db::remove_channel_oncall_notification(&conn, info.notification_id)
+        db::remove_channel_oncall_notification(&conn, req.notification_id)
     })
     .await
     {
