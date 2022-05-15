@@ -1,0 +1,11 @@
+services:
+  web:
+    image: registry.rdelfin.com/oncall_bot_web:latest
+    ports:
+      - "4010:80"
+  api:
+    image: registry.rdelfin.com/oncall_bot_api:latest
+    volumes:
+      - ./api/data:/data
+    ports:
+      - "4635:80"
