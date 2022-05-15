@@ -7,21 +7,21 @@ use tokio::{
 };
 
 #[derive(Debug)]
-pub struct Syncer {
+pub struct UserGroupSyncer {
     oncall_id: String,
     user_group_id: String,
     stop_tx: Option<Sender<()>>,
 }
 
-impl Syncer {
-    pub fn new(oncall_id: String, user_group_id: String) -> Syncer {
+impl UserGroupSyncer {
+    pub fn new(oncall_id: String, user_group_id: String) -> UserGroupSyncer {
         let (stop_tx, stop_rx) = oneshot::channel();
         let oncall_id_clone = oncall_id.clone();
         let user_group_id_clone = user_group_id.clone();
-        tokio::spawn(
-            async move { oncall_sync(oncall_id_clone, user_group_id_clone, stop_rx).await },
-        );
-        Syncer {
+        tokio::spawn(async move {
+            user_group_sync(oncall_id_clone, user_group_id_clone, stop_rx).await
+        });
+        UserGroupSyncer {
             stop_tx: Some(stop_tx),
             user_group_id,
             oncall_id,
@@ -29,7 +29,7 @@ impl Syncer {
     }
 }
 
-impl Drop for Syncer {
+impl Drop for UserGroupSyncer {
     fn drop(&mut self) {
         // Extract out `stop_tx` (which should never be none)
         match std::mem::take(&mut self.stop_tx) {
@@ -46,10 +46,19 @@ impl Drop for Syncer {
     }
 }
 
-async fn oncall_sync(oncall_id: String, user_group_id: String, mut stop_rx: Receiver<()>) {
+async fn user_group_sync(oncall_id: String, user_group_id: String, mut stop_rx: Receiver<()>) {
     let sleep_time = Duration::from_secs(60);
+    let mut first_iter = true;
 
     loop {
+        // While putting the sleep at the end gets rid of this if, putting it here allows us to use
+        // continues to break flow cleanly and avoid relentless retries if there's an issue
+        if first_iter {
+            first_iter = false;
+        } else {
+            sleep(sleep_time).await;
+        }
+
         // First, make sure we haven't gotten a stop message
         match stop_rx.try_recv() {
             // We've been asked to stop, or the process above is dead. Stop, so return immediately
@@ -103,7 +112,5 @@ async fn oncall_sync(oncall_id: String, user_group_id: String, mut stop_rx: Rece
         if let Err(e) = slack::set_user_group(&user_group_id, &slack_users).await {
             warn!("Failed to update user group {}: {}", user_group_id, e);
         }
-
-        sleep(sleep_time).await;
     }
 }

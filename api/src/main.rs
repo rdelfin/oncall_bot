@@ -1,23 +1,23 @@
 #[macro_use]
 extern crate diesel;
 
-use crate::cache::Cache;
+use crate::{cache::Cache, notifier::SlackNotifier, user_group_sync::UserGroupSyncer};
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result};
 use dotenv::dotenv;
 use futures_util::future::join_all;
 use log::{warn, Level};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc, time::Duration};
-use sync::Syncer;
 use tokio::{join, sync::Mutex};
 
 mod cache;
 mod db;
 mod models;
+mod notifier;
 mod opsgenie;
 mod schema;
 mod slack;
-mod sync;
+mod user_group_sync;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct OncallSync {
@@ -174,9 +174,15 @@ struct ErrorResponse {
 }
 
 #[derive(Debug, Eq, PartialEq, Hash)]
-struct SyncerKey {
+struct UserGroupSyncerKey {
     oncall_id: String,
     user_group_id: String,
+}
+
+#[derive(Debug, Eq, PartialEq, Hash)]
+struct SlackNotifierKey {
+    oncall_id: String,
+    slack_channel_id: String,
 }
 
 //
@@ -240,7 +246,8 @@ async fn db_notification_to_response(
 
 struct AppState {
     // Map of oncall ID to syncers
-    syncers: Mutex<HashMap<SyncerKey, Syncer>>,
+    syncers: Mutex<HashMap<UserGroupSyncerKey, UserGroupSyncer>>,
+    notifiers: Mutex<HashMap<SlackNotifierKey, SlackNotifier>>,
     slack_user_cache: Cache<String, slack::User, slack::Error>, // Key is the user ID
     oncall_cache: Cache<String, opsgenie::Oncall, opsgenie::Error>, // Key is the oncall ID
     slack_channel_cache: Cache<String, slack::Channel, slack::Error>, // Key is the slack channel ID
@@ -248,23 +255,47 @@ struct AppState {
 
 impl AppState {
     async fn new() -> anyhow::Result<AppState> {
-        let conn = db::connection();
-        let syncs = web::block(move || db::list_oncall_syncs(&conn)).await??;
+        let (syncs, notifiers) = join!(
+            web::block(move || {
+                let conn = db::connection();
+                db::list_oncall_syncs(&conn)
+            }),
+            web::block(move || {
+                let conn = db::connection();
+                db::list_notified_slack_channels(&conn)
+            })
+        );
+        let syncs = syncs??;
+        let notifiers = notifiers??;
+
         let syncers = syncs
             .into_iter()
             .map(|s| {
                 (
-                    SyncerKey {
+                    UserGroupSyncerKey {
                         oncall_id: s.oncall_id.clone(),
                         user_group_id: s.user_group_id.clone(),
                     },
-                    Syncer::new(s.oncall_id, s.user_group_id),
+                    UserGroupSyncer::new(s.oncall_id, s.user_group_id),
+                )
+            })
+            .collect();
+        let notifiers = notifiers
+            .into_iter()
+            .map(|n| {
+                (
+                    SlackNotifierKey {
+                        oncall_id: n.oncall_id.clone(),
+                        slack_channel_id: n.slack_channel_id.clone(),
+                    },
+                    SlackNotifier::new(n.oncall_id, n.slack_channel_id),
                 )
             })
             .collect();
 
         Ok(AppState {
             syncers: Mutex::new(syncers),
+            notifiers: Mutex::new(notifiers),
             slack_user_cache: Cache::new(Duration::from_secs(60), slack_users_update),
             oncall_cache: Cache::new(Duration::from_secs(60), oncall_update),
             slack_channel_cache: Cache::new(Duration::from_secs(60), slack_channel_update),
@@ -452,7 +483,7 @@ async fn add_sync(
 
         // Add a syncer if not already there
         {
-            let key = SyncerKey {
+            let key = UserGroupSyncerKey {
                 oncall_id: req.oncall_id.clone(),
                 user_group_id: req.user_group_id.clone(),
             };
@@ -460,7 +491,7 @@ async fn add_sync(
             if !syncers.contains_key(&key) {
                 syncers.insert(
                     key,
-                    Syncer::new(req.oncall_id.clone(), req.user_group_id.clone()),
+                    UserGroupSyncer::new(req.oncall_id.clone(), req.user_group_id.clone()),
                 );
             }
         }
@@ -491,7 +522,7 @@ async fn remove_sync(
 
     // Delete syncer if present
     {
-        let key = SyncerKey {
+        let key = UserGroupSyncerKey {
             oncall_id: deleted_sync.oncall_id.clone(),
             user_group_id: deleted_sync.user_group_id.clone(),
         };
@@ -838,6 +869,24 @@ async fn add_notification(
         }
     };
 
+    // Add notifier if not already there
+    {
+        let key = SlackNotifierKey {
+            oncall_id: notification.oncall_id.clone(),
+            slack_channel_id: notification.slack_channel_id.clone(),
+        };
+        let mut notifiers = data.notifiers.lock().await;
+        if !notifiers.contains_key(&key) {
+            notifiers.insert(
+                key,
+                SlackNotifier::new(
+                    notification.oncall_id.clone(),
+                    notification.slack_channel_id.clone(),
+                ),
+            );
+        }
+    }
+
     Ok(HttpResponse::Ok().json(AddNotificationResponse { notification }))
 }
 
@@ -871,6 +920,20 @@ async fn remove_notification(
             }));
         }
     };
+
+    // Delete notifier if present
+    {
+        let key = SlackNotifierKey {
+            oncall_id: notification.oncall_id.clone(),
+            slack_channel_id: notification.slack_channel_id.clone(),
+        };
+        let mut notifiers = data.notifiers.lock().await;
+        if !notifiers.contains_key(&key) {
+            warn!("Syncer key {:?} not found in cache after delete", key);
+        } else {
+            notifiers.remove(&key);
+        }
+    }
 
     Ok(HttpResponse::Ok().json(RemoveNotificationResponse { notification }))
 }

@@ -91,6 +91,12 @@ pub struct ConversationsListResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ConversationInfoResponse {
+    pub ok: bool,
+    pub channel: Channel,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ConversationSetTopicResponse {
     pub ok: bool,
     pub channel: Channel,
@@ -233,6 +239,31 @@ pub async fn list_channels() -> Result<Vec<Channel>> {
     }
 
     Ok(channel_list)
+}
+
+pub async fn get_channel(id: &str) -> Result<Channel> {
+    let slack_oauth_token = slack_oauth_token();
+    let client = reqwest::Client::new();
+    let conversations_response = client
+        .get(Url::parse_with_params(
+            "https://slack.com/api/conversations.info",
+            &[("channel", id)],
+        )?)
+        .header(AUTHORIZATION, format!("Bearer {}", slack_oauth_token))
+        .send()
+        .await
+        .unwrap();
+
+    let conversation = match conversations_response.status() {
+        reqwest::StatusCode::OK => {
+            conversations_response
+                .json::<ConversationInfoResponse>()
+                .await?
+        }
+        error_code => return Err(Error::HttpErrorCode(error_code)),
+    };
+
+    Ok(conversation.channel)
 }
 
 pub async fn set_channel_topic(channel_id: &str, topic: &str) -> Result<Channel> {
