@@ -976,7 +976,7 @@ async fn main() -> anyhow::Result<()> {
             .default_service(web::route().to(not_found))
     })
     .bind((
-        "127.0.0.1",
+        "0.0.0.0",
         env::var("PORT")
             .unwrap_or("80".into())
             .parse()
