@@ -7,5 +7,7 @@ services:
     image: registry.rdelfin.com/oncall_bot_api:latest
     volumes:
       - ./api/data:/data
+    environment:
+      - PORT=4635
     ports:
-      - "4635:80"
+      - "4635:4635"
