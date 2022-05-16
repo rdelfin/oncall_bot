@@ -9,5 +9,3 @@ services:
       - ./api/data:/data
     environment:
       - PORT=4635
-    ports:
-      - "4635:4635"
