@@ -179,7 +179,7 @@ async fn slack_notifier(oncall_id: String, slack_channel_id: String, mut stop_rx
                 )
             };
             let (post_result, topic_result) = join!(
-                slack::post_message(&slack_channel_id, &posted_message,),
+                slack::post_message(&slack_channel_id, &posted_message),
                 slack::set_channel_topic(&slack_channel_id, &new_topic)
             );
 
