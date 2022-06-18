@@ -70,17 +70,16 @@ struct CurrentOncallResponse {
     pub data: CurrentOncall,
 }
 
-pub async fn list_oncalls() -> Vec<Oncall> {
+pub async fn list_oncalls() -> Result<Vec<Oncall>> {
     let opsgenie_key = opsgenie_key();
     let client = reqwest::Client::new();
     let schedules_response = client
         .get("https://api.opsgenie.com/v2/schedules")
         .header(AUTHORIZATION, format!("GenieKey {}", opsgenie_key))
         .send()
-        .await
-        .unwrap();
+        .await?;
 
-    match schedules_response.status() {
+    Ok(match schedules_response.status() {
         reqwest::StatusCode::OK => match schedules_response.json::<ScheduleListResponse>().await {
             Ok(parsed) => parsed
                 .data
@@ -93,7 +92,7 @@ pub async fn list_oncalls() -> Vec<Oncall> {
             Err(_) => vec![],
         },
         _ => vec![],
-    }
+    })
 }
 
 pub async fn get_oncall_name(id: &str) -> Result<String> {
@@ -103,8 +102,7 @@ pub async fn get_oncall_name(id: &str) -> Result<String> {
         .get(format!("https://api.opsgenie.com/v2/schedules/{}", id))
         .header(AUTHORIZATION, format!("GenieKey {}", opsgenie_key))
         .send()
-        .await
-        .unwrap();
+        .await?;
 
     match schedule_response.status() {
         reqwest::StatusCode::OK => Ok(schedule_response
@@ -123,8 +121,7 @@ pub async fn list_users() -> Result<Vec<User>> {
         .get("https://api.opsgenie.com/v2/users")
         .header(AUTHORIZATION, format!("GenieKey {}", opsgenie_key))
         .send()
-        .await
-        .unwrap();
+        .await?;
 
     match users_response.status() {
         reqwest::StatusCode::OK => Ok(users_response.json::<ListUsersResponse>().await?.data),
@@ -139,8 +136,7 @@ pub async fn get_user(id: &str) -> Result<User> {
         .get(format!("https://api.opsgenie.com/v2/users/{}", id))
         .header(AUTHORIZATION, format!("GenieKey {}", opsgenie_key))
         .send()
-        .await
-        .unwrap();
+        .await?;
 
     match user_response.status() {
         reqwest::StatusCode::OK => Ok(user_response.json::<GetUserResponse>().await?.data),
@@ -158,8 +154,7 @@ pub async fn get_current_oncalls(oncall_id: &str) -> Result<Vec<String>> {
         ))
         .header(AUTHORIZATION, format!("GenieKey {}", opsgenie_key))
         .send()
-        .await
-        .unwrap();
+        .await?;
 
     match oncall_response.status() {
         reqwest::StatusCode::OK => Ok(oncall_response

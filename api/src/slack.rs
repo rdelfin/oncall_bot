@@ -109,8 +109,7 @@ pub async fn list_user_groups() -> Result<Vec<UserGroup>> {
         .get("https://slack.com/api/usergroups.list")
         .header(AUTHORIZATION, format!("Bearer {}", slack_oauth_token))
         .send()
-        .await
-        .unwrap();
+        .await?;
 
     match usergroups_response.status() {
         reqwest::StatusCode::OK => Ok(usergroups_response
@@ -140,8 +139,7 @@ pub async fn set_user_group(id: &str, users: &[String]) -> Result {
             users,
         })
         .send()
-        .await
-        .unwrap();
+        .await?;
 
     match usergroups_response.status() {
         reqwest::StatusCode::OK => Ok(()),
@@ -156,8 +154,7 @@ pub async fn list_users() -> Result<Vec<User>> {
         .get("https://slack.com/api/users.list")
         .header(AUTHORIZATION, format!("Bearer {}", slack_oauth_token))
         .send()
-        .await
-        .unwrap();
+        .await?;
 
     match users_response.status() {
         reqwest::StatusCode::OK => Ok(users_response
@@ -181,8 +178,7 @@ pub async fn get_user(id: &str) -> Result<User> {
         )?)
         .header(AUTHORIZATION, format!("Bearer {}", slack_oauth_token))
         .send()
-        .await
-        .unwrap();
+        .await?;
 
     match users_response.status() {
         reqwest::StatusCode::OK => Ok(users_response.json::<GetUserResponse>().await?.user),
@@ -208,8 +204,7 @@ pub async fn list_channels() -> Result<Vec<Channel>> {
             )?)
             .header(AUTHORIZATION, format!("Bearer {}", slack_oauth_token))
             .send()
-            .await
-            .unwrap();
+            .await?;
 
         let mut conversations = match conversations_response.status() {
             reqwest::StatusCode::OK => {
@@ -251,8 +246,7 @@ pub async fn get_channel(id: &str) -> Result<Channel> {
         )?)
         .header(AUTHORIZATION, format!("Bearer {}", slack_oauth_token))
         .send()
-        .await
-        .unwrap();
+        .await?;
 
     let conversation = match conversations_response.status() {
         reqwest::StatusCode::OK => {
@@ -278,8 +272,7 @@ pub async fn set_channel_topic(channel_id: &str, topic: &str) -> Result<Channel>
             topic,
         })
         .send()
-        .await
-        .unwrap();
+        .await?;
 
     match set_topic_response.status() {
         reqwest::StatusCode::OK => Ok(set_topic_response
@@ -302,8 +295,7 @@ pub async fn post_message(channel_id: &str, message: &str) -> Result<()> {
             text: message,
         })
         .send()
-        .await
-        .unwrap();
+        .await?;
 
     match set_topic_response.status() {
         reqwest::StatusCode::OK => Ok(()),

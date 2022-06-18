@@ -199,7 +199,7 @@ async fn slack_users_update() -> slack::Result<HashMap<String, slack::User>> {
 
 async fn oncall_update() -> opsgenie::Result<HashMap<String, opsgenie::Oncall>> {
     Ok(opsgenie::list_oncalls()
-        .await
+        .await?
         .into_iter()
         .map(|oncall| (oncall.id.clone(), oncall))
         .collect())
