@@ -17,5 +17,5 @@ reqwest = {version = "0.11.10", features = ["json"] }
 serde = { version = "1.0.136", features = ["derive"] }
 simple_logger = "2.1.0"
 thiserror = "1.0.30"
-tokio = { version = "1.17.0", features = ["full"] }
+tokio = { version = "1.18.4", features = ["full"] }
 url = "2.2.2"
